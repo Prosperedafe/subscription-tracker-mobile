@@ -1,0 +1,416 @@
+import React, { useState } from 'react';
+import {
+  View,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { subscriptionsApi } from '@/lib/api';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
+
+const subscriptionSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be at most 100 characters'),
+  price: z.number().min(0, 'Price must be greater than or equal to 0'),
+  currency: z.enum(['USD', 'EUR', 'GBP']),
+  frequency: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
+  category: z.enum(['food', 'entertainment', 'health', 'education', 'other']),
+  paymentMethod: z.string().min(1, 'Payment method is required'),
+  status: z.enum(['active', 'inactive', 'expired']).optional(),
+  startDate: z.string().min(1, 'Start date is required'),
+  renewalDate: z.string().min(1, 'Renewal date is required'),
+}).refine((data) => {
+  const start = new Date(data.startDate);
+  const renewal = new Date(data.renewalDate);
+  return renewal > start;
+}, {
+  message: 'Renewal date must be after start date',
+  path: ['renewalDate'],
+});
+
+type SubscriptionFormData = z.infer<typeof subscriptionSchema>;
+
+export default function CreateSubscriptionScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const queryClient = useQueryClient();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+    watch,
+  } = useForm<SubscriptionFormData>({
+    resolver: zodResolver(subscriptionSchema),
+    defaultValues: {
+      currency: 'USD',
+      frequency: 'monthly',
+      category: 'other',
+      status: 'active',
+    },
+  });
+
+  const startDate = watch('startDate');
+
+  const mutation = useMutation({
+    mutationFn: subscriptionsApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscriptions', user?._id] });
+      Alert.alert('Success', 'Subscription created successfully', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    },
+    onError: (error: any) => {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to create subscription');
+    },
+  });
+
+  const onSubmit = async (data: SubscriptionFormData) => {
+    setIsLoading(true);
+    try {
+      await mutation.mutateAsync(data);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const colors = Colors[colorScheme ?? 'light'];
+
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  return (
+    <ThemedView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ThemedText type="title" style={styles.title}>Create Subscription</ThemedText>
+
+        <View style={styles.form}>
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>Name *</ThemedText>
+            <Controller
+              control={control}
+              name="name"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
+                  placeholder="Subscription name"
+                  placeholderTextColor={colors.icon}
+                  value={value}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                />
+              )}
+            />
+            {errors.name && (
+              <ThemedText style={styles.error}>{errors.name.message}</ThemedText>
+            )}
+          </View>
+
+          <View style={styles.row}>
+            <View style={[styles.inputContainer, styles.halfWidth]}>
+              <ThemedText style={styles.label}>Price *</ThemedText>
+              <Controller
+                control={control}
+                name="price"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.icon}
+                    value={value?.toString()}
+                    onBlur={onBlur}
+                    onChangeText={(text) => onChange(parseFloat(text) || 0)}
+                    keyboardType="decimal-pad"
+                  />
+                )}
+              />
+              {errors.price && (
+                <ThemedText style={styles.error}>{errors.price.message}</ThemedText>
+              )}
+            </View>
+
+            <View style={[styles.inputContainer, styles.halfWidth]}>
+              <ThemedText style={styles.label}>Currency *</ThemedText>
+              <Controller
+                control={control}
+                name="currency"
+                render={({ field: { onChange, value } }) => (
+                  <View style={styles.pickerContainer}>
+                    {(['USD', 'EUR', 'GBP'] as const).map((curr) => (
+                      <TouchableOpacity
+                        key={curr}
+                        onPress={() => onChange(curr)}
+                        style={[
+                          styles.pickerOption,
+                          value === curr && { backgroundColor: colors.tint },
+                        ]}
+                      >
+                        <ThemedText style={[styles.pickerOptionText, value === curr && styles.pickerOptionTextActive]}>
+                          {curr}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>Frequency *</ThemedText>
+            <Controller
+              control={control}
+              name="frequency"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.pickerContainer}>
+                  {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((freq) => (
+                    <TouchableOpacity
+                      key={freq}
+                      onPress={() => onChange(freq)}
+                      style={[
+                        styles.pickerOption,
+                        value === freq && { backgroundColor: colors.tint },
+                      ]}
+                    >
+                      <ThemedText style={[styles.pickerOptionText, value === freq && styles.pickerOptionTextActive]}>
+                        {freq.charAt(0).toUpperCase() + freq.slice(1)}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>Category *</ThemedText>
+            <Controller
+              control={control}
+              name="category"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.pickerContainer}>
+                  {(['food', 'entertainment', 'health', 'education', 'other'] as const).map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => onChange(cat)}
+                      style={[
+                        styles.pickerOption,
+                        value === cat && { backgroundColor: colors.tint },
+                      ]}
+                    >
+                      <ThemedText style={[styles.pickerOptionText, value === cat && styles.pickerOptionTextActive]}>
+                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>Payment Method *</ThemedText>
+            <Controller
+              control={control}
+              name="paymentMethod"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
+                  placeholder="e.g., Credit Card, PayPal"
+                  placeholderTextColor={colors.icon}
+                  value={value}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                />
+              )}
+            />
+            {errors.paymentMethod && (
+              <ThemedText style={styles.error}>{errors.paymentMethod.message}</ThemedText>
+            )}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>Status</ThemedText>
+            <Controller
+              control={control}
+              name="status"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.pickerContainer}>
+                  {(['active', 'inactive', 'expired'] as const).map((stat) => (
+                    <TouchableOpacity
+                      key={stat}
+                      onPress={() => onChange(stat)}
+                      style={[
+                        styles.pickerOption,
+                        value === stat && { backgroundColor: colors.tint },
+                      ]}
+                    >
+                      <ThemedText style={[styles.pickerOptionText, value === stat && styles.pickerOptionTextActive]}>
+                        {stat.charAt(0).toUpperCase() + stat.slice(1)}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>Start Date *</ThemedText>
+            <Controller
+              control={control}
+              name="startDate"
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.icon}
+                  value={value}
+                  onChangeText={onChange}
+                />
+              )}
+            />
+            {errors.startDate && (
+              <ThemedText style={styles.error}>{errors.startDate.message}</ThemedText>
+            )}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <ThemedText style={styles.label}>Renewal Date *</ThemedText>
+            <Controller
+              control={control}
+              name="renewalDate"
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.icon}
+                  value={value}
+                  onChangeText={onChange}
+                />
+              )}
+            />
+            {errors.renewalDate && (
+              <ThemedText style={styles.error}>{errors.renewalDate.message}</ThemedText>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.tint }]}
+            onPress={handleSubmit(onSubmit)}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <ThemedText style={styles.buttonText}>Create Subscription</ThemedText>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => router.back()}
+          >
+            <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </ThemedView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 24,
+  },
+  form: {
+    width: '100%',
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  halfWidth: {
+    flex: 1,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 16,
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  pickerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pickerOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+  },
+  pickerOptionText: {
+    fontSize: 14,
+  },
+  pickerOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  error: {
+    color: '#ff4444',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  button: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    textDecorationLine: 'underline',
+  },
+});
