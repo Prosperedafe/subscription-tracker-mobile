@@ -16,7 +16,7 @@ import { subscriptionsApi } from '@/lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+import { Colors, FontFamily } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 interface Subscription {
@@ -186,7 +186,7 @@ export default function DashboardScreen() {
       </View>
 
       <TextInput
-        style={[styles.searchInput, { color: colors.text, borderColor: colors.icon, backgroundColor: colors.background }]}
+        style={[styles.searchInput, { color: colors.text, borderColor: colors.icon, backgroundColor: colors.background, fontFamily: FontFamily.regular }]}
         placeholder="Search subscriptions..."
         placeholderTextColor={colors.icon}
         value={searchQuery}

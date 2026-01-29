@@ -4,21 +4,41 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   ScrollView,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { format, parseISO, addMonths, isValid } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { subscriptionsApi } from '@/lib/api';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+import { Colors, FontFamily } from '@/constants/theme';
+import Toast from 'react-native-toast-message';
 import { useAuth } from '@/contexts/AuthContext';
+
+const API_DATE_FORMAT = 'yyyy-MM-dd';
+const DISPLAY_DATE_FORMAT = 'MMM d, yyyy';
+
+function toApiDate(date: Date): string {
+  return format(date, API_DATE_FORMAT);
+}
+
+function parseApiDate(value: string | undefined): Date {
+  if (!value) return new Date();
+  try {
+    const d = parseISO(value);
+    return isValid(d) ? d : new Date();
+  } catch {
+    return new Date();
+  }
+}
 
 const subscriptionSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be at most 100 characters'),
@@ -48,11 +68,13 @@ export default function CreateSubscriptionScreen() {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
 
+  const today = new Date();
+  const defaultRenewal = addMonths(today, 1);
+
   const {
     control,
     handleSubmit,
     formState: { errors },
-    watch,
   } = useForm<SubscriptionFormData>({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: {
@@ -60,21 +82,26 @@ export default function CreateSubscriptionScreen() {
       frequency: 'monthly',
       category: 'other',
       status: 'active',
+      startDate: toApiDate(today),
+      renewalDate: toApiDate(defaultRenewal),
     },
   });
 
-  const startDate = watch('startDate');
+  const [datePickerOpen, setDatePickerOpen] = useState<'start' | 'renewal' | null>(null);
 
   const mutation = useMutation({
     mutationFn: subscriptionsApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscriptions', user?._id] });
-      Alert.alert('Success', 'Subscription created successfully', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      Toast.show({ type: 'success', text1: 'Success', text2: 'Subscription created successfully' });
+      setTimeout(() => router.back(), 1500);
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to create subscription');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.response?.data?.message || 'Failed to create subscription',
+      });
     },
   });
 
@@ -89,11 +116,6 @@ export default function CreateSubscriptionScreen() {
 
   const colors = Colors[colorScheme ?? 'light'];
 
-  const getTodayDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -107,7 +129,7 @@ export default function CreateSubscriptionScreen() {
               name="name"
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
+                  style={[styles.input, { color: colors.text, borderColor: colors.icon, fontFamily: FontFamily.regular }]}
                   placeholder="Subscription name"
                   placeholderTextColor={colors.icon}
                   value={value}
@@ -129,7 +151,7 @@ export default function CreateSubscriptionScreen() {
                 name="price"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
+                    style={[styles.input, { color: colors.text, borderColor: colors.icon, fontFamily: FontFamily.regular }]}
                     placeholder="0.00"
                     placeholderTextColor={colors.icon}
                     value={value?.toString()}
@@ -230,7 +252,7 @@ export default function CreateSubscriptionScreen() {
               name="paymentMethod"
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
+                  style={[styles.input, { color: colors.text, borderColor: colors.icon, fontFamily: FontFamily.regular }]}
                   placeholder="e.g., Credit Card, PayPal"
                   placeholderTextColor={colors.icon}
                   value={value}
@@ -275,15 +297,41 @@ export default function CreateSubscriptionScreen() {
             <Controller
               control={control}
               name="startDate"
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.icon}
-                  value={value}
-                  onChangeText={onChange}
-                />
-              )}
+              render={({ field: { onChange, value } }) =>
+                Platform.OS === 'web' ? (
+                  <TextInput
+                    style={[styles.input, { color: colors.text, borderColor: colors.icon, fontFamily: FontFamily.regular }]}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.icon}
+                    value={value || ''}
+                    onChangeText={onChange}
+                    // @ts-expect-error - type="date" is valid for web
+                    type="date"
+                  />
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.input, styles.dateTouchable, { borderColor: colors.icon, fontFamily: FontFamily.regular }]}
+                      onPress={() => setDatePickerOpen('start')}
+                    >
+                      <ThemedText style={{ color: value ? colors.text : colors.icon }}>
+                        {value ? format(parseApiDate(value), DISPLAY_DATE_FORMAT) : 'Tap to pick date'}
+                      </ThemedText>
+                    </TouchableOpacity>
+                    {datePickerOpen === 'start' && (
+                      <DateTimePicker
+                        value={parseApiDate(value)}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(_, selectedDate) => {
+                          setDatePickerOpen(null);
+                          if (selectedDate) onChange(toApiDate(selectedDate));
+                        }}
+                      />
+                    )}
+                  </>
+                )
+              }
             />
             {errors.startDate && (
               <ThemedText style={styles.error}>{errors.startDate.message}</ThemedText>
@@ -295,15 +343,41 @@ export default function CreateSubscriptionScreen() {
             <Controller
               control={control}
               name="renewalDate"
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.icon}
-                  value={value}
-                  onChangeText={onChange}
-                />
-              )}
+              render={({ field: { onChange, value } }) =>
+                Platform.OS === 'web' ? (
+                  <TextInput
+                    style={[styles.input, { color: colors.text, borderColor: colors.icon, fontFamily: FontFamily.regular }]}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.icon}
+                    value={value || ''}
+                    onChangeText={onChange}
+                    // @ts-expect-error - type="date" is valid for web
+                    type="date"
+                  />
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.input, styles.dateTouchable, { borderColor: colors.icon, fontFamily: FontFamily.regular }]}
+                      onPress={() => setDatePickerOpen('renewal')}
+                    >
+                      <ThemedText style={{ color: value ? colors.text : colors.icon }}>
+                        {value ? format(parseApiDate(value), DISPLAY_DATE_FORMAT) : 'Tap to pick date'}
+                      </ThemedText>
+                    </TouchableOpacity>
+                    {datePickerOpen === 'renewal' && (
+                      <DateTimePicker
+                        value={parseApiDate(value)}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(_, selectedDate) => {
+                          setDatePickerOpen(null);
+                          if (selectedDate) onChange(toApiDate(selectedDate));
+                        }}
+                      />
+                    )}
+                  </>
+                )
+              }
             />
             {errors.renewalDate && (
               <ThemedText style={styles.error}>{errors.renewalDate.message}</ThemedText>
@@ -369,6 +443,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+  },
+  dateTouchable: {
+    justifyContent: 'center',
   },
   pickerContainer: {
     flexDirection: 'row',

@@ -2,12 +2,27 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import { storage } from './storage';
 
-const API_BASE_URL = __DEV__
-    ? (Platform.OS === 'web' ? 'http://localhost:5500' : 'http://localhost:5500')
-    : 'http://localhost:5500';
+const API_PORT = 5500;
+const API_TIMEOUT_MS = 20000;
+
+function getDefaultApiBaseUrl(): string {
+    if (Platform.OS === 'web') {
+        return `http://localhost:${API_PORT}`;
+    }
+    if (Platform.OS === 'android') {
+        return `http://192.168.0.133:${API_PORT}`;
+    }
+    return `http://localhost:${API_PORT}`;
+}
+
+const envUrl = typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL?.trim();
+const API_BASE_URL = envUrl || getDefaultApiBaseUrl();
+
+export const getApiBaseUrl = () => `${API_BASE_URL}/api`;
 
 export const apiClient = axios.create({
     baseURL: `${API_BASE_URL}/api`,
+    timeout: API_TIMEOUT_MS,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -37,14 +52,20 @@ apiClient.interceptors.response.use(
     }
 );
 
+const isDev = __DEV__;
+
 export const authApi = {
     signUp: async (data: { name: string; email: string; password: string }) => {
         const response = await apiClient.post('/auth/sign-up', data);
         return response.data;
     },
     signIn: async (data: { email: string; password: string }) => {
-        const response = await apiClient.post('/auth/sign-in', data);
-        return response.data;
+        try {
+            const response = await apiClient.post('/auth/sign-in', data);
+            return response.data;
+        } catch (err: any) {
+            throw err;
+        }
     },
 };
 

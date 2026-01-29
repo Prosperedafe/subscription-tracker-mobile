@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useRouter, useSegments, usePathname } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/contexts/AuthContext';
-import { ActivityIndicator, StyleSheet } from 'react-native';
-import { ThemedView } from './themed-view';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -12,11 +11,16 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const hasNavigated = useRef(false);
 
   useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync();
+    }
+  }, [isLoading]);
+
+  useEffect(() => {
     if (isLoading) return;
     if (hasNavigated.current) return;
 
     const inAuthGroup = pathname === '/sign-in' || pathname === '/sign-up';
-    const inTabsGroup = segments[0] === '(tabs)';
 
     if (!user && !inAuthGroup) {
       hasNavigated.current = true;
@@ -34,20 +38,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }, [isLoading]);
 
   if (isLoading) {
-    return (
-      <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-      </ThemedView>
-    );
+    return null;
   }
 
   return <>{children}</>;
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});

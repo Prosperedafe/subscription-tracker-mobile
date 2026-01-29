@@ -41,28 +41,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, []);
 
     const signIn = async (email: string, password: string) => {
-        const response = await authApi.signIn({ email, password });
-        if (response.success && response.data) {
-            const { user: userData, token: newToken } = response.data;
+        const response = await authApi.signIn({ email, password }) as any;
+        // Support both { success, data: { user, token } } and { user, token } response shapes
+        const userData = response?.data?.user ?? response?.user;
+        const newToken = response?.data?.token ?? response?.token;
+        if (userData && newToken) {
             setUser(userData);
             setToken(newToken);
             await storage.setItem('token', newToken);
             await storage.setItem('user', JSON.stringify(userData));
         } else {
-            throw new Error(response.message || 'Sign in failed');
+            const msg = response?.message ?? response?.error ?? 'Sign in failed';
+            throw new Error(typeof msg === 'string' ? msg : 'Sign in failed');
         }
     };
 
     const signUp = async (name: string, email: string, password: string) => {
-        const response = await authApi.signUp({ name, email, password });
-        if (response.success && response.data) {
-            const { user: userData, token: newToken } = response.data;
+        const response = await authApi.signUp({ name, email, password }) as any;
+        const userData = response?.data?.user ?? response?.user;
+        const newToken = response?.data?.token ?? response?.token;
+        if (userData && newToken) {
             setUser(userData);
             setToken(newToken);
             await storage.setItem('token', newToken);
             await storage.setItem('user', JSON.stringify(userData));
         } else {
-            throw new Error(response.message || 'Sign up failed');
+            const msg = response?.message ?? response?.error ?? 'Sign up failed';
+            throw new Error(typeof msg === 'string' ? msg : 'Sign up failed');
         }
     };
 

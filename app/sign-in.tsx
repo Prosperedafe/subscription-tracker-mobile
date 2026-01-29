@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useAuth } from '@/contexts/AuthContext';
+import { AppButton } from '@/components/app-button';
+import { FormInput } from '@/components/form-input';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+import { FontFamily, ViewGradient } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
+import { getApiBaseUrl } from '@/lib/api';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
+import { z } from 'zod';
 
 const signInSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -20,153 +25,128 @@ type SignInFormData = z.infer<typeof signInSchema>;
 export default function SignInScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
-  const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
 
   const {
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),
   });
 
   const onSubmit = async (data: SignInFormData) => {
+    if (__DEV__) {
+      console.log({ email: data.email, password: data.password });
+    }
     setIsLoading(true);
     try {
       await signIn(data.email, data.password);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to sign in');
+      if (__DEV__) {
+        console.log('[SignIn] error:', error);
+        console.log('[SignIn] error.response:', error?.response?.data);
+      }
+      const isNetworkError = !error?.response && (error?.message === 'Network Error' || error?.code === 'ERR_NETWORK');
+      const message = isNetworkError
+        ? `Can't reach API at ${getApiBaseUrl()}. On a phone? Use your computer's IP in EXPO_PUBLIC_API_URL. Ensure backend listens on 0.0.0.0.`
+        : (error?.response?.data?.message ?? error?.response?.data?.error ?? (typeof error?.message === 'string' ? error.message : 'Failed to sign in.'));
+      Toast.show({ type: 'error', text1: isNetworkError ? 'Network Error' : 'Error', text2: message });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const colors = Colors[colorScheme ?? 'light'];
-
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.title}>Sign In</ThemedText>
-      
-      <View style={styles.form}>
-        <View style={styles.inputContainer}>
-          <ThemedText style={styles.label}>Email</ThemedText>
-          <Controller
-            control={control}
-            name="email"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
-                placeholder="Enter your email"
-                placeholderTextColor={colors.icon}
-                value={value}
-                onBlur={onBlur}
-                onChangeText={onChange}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            )}
-          />
-          {errors.email && (
-            <ThemedText style={styles.error}>{errors.email.message}</ThemedText>
-          )}
-        </View>
+    <LinearGradient
+      style={StyleSheet.absoluteFill}
+      colors={ViewGradient.colors}
+      locations={[0, 1]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
+      <KeyboardAvoidingView
+        style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <Image source={require('@/assets/icons/logo.png')} style={styles.logo} />
+            <ThemedText type="title" style={styles.title}>Sign In</ThemedText>
+            <FormInput
+              control={control}
+              name="email"
+              label="Email"
+              placeholder="Enter your email"
+              error={errors.email?.message}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <FormInput
+              control={control}
+              name="password"
+              label="Password"
+              placeholder="Enter your password"
+              error={errors.password?.message}
+              secureTextEntry
+            />
 
-        <View style={styles.inputContainer}>
-          <ThemedText style={styles.label}>Password</ThemedText>
-          <Controller
-            control={control}
-            name="password"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, { color: colors.text, borderColor: colors.icon }]}
-                placeholder="Enter your password"
-                placeholderTextColor={colors.icon}
-                value={value}
-                onBlur={onBlur}
-                onChangeText={onChange}
-                secureTextEntry
-              />
-            )}
-          />
-          {errors.password && (
-            <ThemedText style={styles.error}>{errors.password.message}</ThemedText>
-          )}
-        </View>
+            <AppButton
+              title="Sign In"
+              onPress={handleSubmit(onSubmit)}
+              loading={isLoading}
+              disabled={isLoading || !isValid}
+            />
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.tint }]}
-          onPress={handleSubmit(onSubmit)}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <ThemedText style={styles.buttonText}>Sign In</ThemedText>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => router.push('/sign-up')}
-        >
-          <ThemedText style={styles.linkText}>
-            Don't have an account? Sign Up
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
-    </ThemedView>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => router.push('/sign-up')}
+            >
+              <ThemedText style={styles.linkText}>
+                Don't have an account? Sign Up
+              </ThemedText>
+            </TouchableOpacity>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    padding: 20,
+  },
+  logo: {
+    width: 100,
+    height: 100,
+    alignSelf: 'center',
+    marginBottom: 80,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     marginBottom: 32,
     textAlign: 'center',
+    fontFamily: FontFamily.regular,
   },
-  form: {
+  scrollContent: {
     width: '100%',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  error: {
-    color: '#ff4444',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  button: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+    paddingTop: 40,
   },
   linkButton: {
-    marginTop: 16,
+    marginTop: 20,
     alignItems: 'center',
   },
   linkText: {

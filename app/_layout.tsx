@@ -1,13 +1,26 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { QueryClientProvider } from '@tanstack/react-query';
+import Toast from 'react-native-toast-message';
 import 'react-native-reanimated';
+
+import {
+  RedRose_300Light,
+  RedRose_400Regular,
+  RedRose_500Medium,
+  RedRose_600SemiBold,
+  RedRose_700Bold,
+} from '@expo-google-fonts/red-rose';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { queryClient } from '@/lib/queryClient';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -15,6 +28,18 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  const [fontsLoaded] = useFonts({
+    RedRose_300Light,
+    RedRose_400Regular,
+    RedRose_500Medium,
+    RedRose_600SemiBold,
+    RedRose_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -29,6 +54,7 @@ export default function RootLayout() {
               <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
             </Stack>
             <StatusBar style="auto" />
+            <Toast />
           </ProtectedRoute>
         </ThemeProvider>
       </AuthProvider>

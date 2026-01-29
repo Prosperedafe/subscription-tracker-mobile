@@ -25,17 +25,22 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "splash": {
+      "image": "./assets/images/Splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#050511"
+    },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/Splash.png",
           "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "resizeMode": "cover",
+          "backgroundColor": "#050511",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#050511"
           }
         }
       ]
