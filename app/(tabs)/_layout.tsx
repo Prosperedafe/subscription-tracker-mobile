@@ -1,18 +1,17 @@
+import { AddIcon, HomeIcon, SettingsIcon } from '@/assets/icons/icons';
+import { HapticTab } from '@/components/haptic-tab';
 import { Tabs } from 'expo-router';
 import React from 'react';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+const TAB_ACTIVE_COLOR = '#4649E5';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: TAB_ACTIVE_COLOR,
+        tabBarInactiveTintColor: '#9BA1A6',
+        tabBarShowLabel: false,
         headerShown: false,
         tabBarButton: HapticTab,
       }}>
@@ -20,14 +19,21 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color }) => <HomeIcon color={color} />,
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="explore"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
+          title: 'Explore',
+          tabBarIcon: ({ color }) => <AddIcon color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color }) => <SettingsIcon color={color} />,
         }}
       />
     </Tabs>

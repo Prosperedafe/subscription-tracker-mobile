@@ -1,23 +1,31 @@
-import React, { useState, useMemo } from 'react';
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-  TextInput,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { format, differenceInDays, isPast } from 'date-fns';
-import { useAuth } from '@/contexts/AuthContext';
-import { subscriptionsApi } from '@/lib/api';
+import { ProfileHeader } from '@/components/profile-header';
+import { MonthlySpent } from '@/components/Subscriptions/MonthlySpent';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Colors, FontFamily, ViewGradient } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors, FontFamily } from '@/constants/theme';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { subscriptionsApi } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { differenceInDays, format, isPast } from 'date-fns';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Subscription {
   _id: string;
@@ -44,7 +52,7 @@ export default function DashboardScreen() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [sort, setSort] = useState<SortType>('renewal');
   const [searchQuery, setSearchQuery] = useState('');
-
+  const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
@@ -159,145 +167,148 @@ export default function DashboardScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText type="title" style={styles.headerTitle}>Subscriptions</ThemedText>
-        <TouchableOpacity
-          onPress={() => router.push('/create-subscription')}
-          style={[styles.addButton, { backgroundColor: colors.tint }]}
-        >
-          <IconSymbol name="plus" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.statsContainer}>
-        <View style={[styles.statCard, { backgroundColor: colors.background, borderColor: colors.icon }]}>
-          <ThemedText style={styles.statLabel}>Monthly Spending</ThemedText>
-          <ThemedText type="subtitle" style={styles.statValue}>
-            {formatCurrency(totalSpending, 'USD')}
-          </ThemedText>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: colors.background, borderColor: colors.icon }]}>
-          <ThemedText style={styles.statLabel}>Upcoming (7 days)</ThemedText>
-          <ThemedText type="subtitle" style={styles.statValue}>
-            {upcomingRenewals.length}
-          </ThemedText>
-        </View>
-      </View>
-
-      <TextInput
-        style={[styles.searchInput, { color: colors.text, borderColor: colors.icon, backgroundColor: colors.background, fontFamily: FontFamily.regular }]}
-        placeholder="Search subscriptions..."
-        placeholderTextColor={colors.icon}
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
-
-      <View style={styles.filtersContainer}>
-        <View style={styles.filterRow}>
-          <ThemedText style={styles.filterLabel}>Filter:</ThemedText>
-          {(['all', 'active', 'inactive', 'expired'] as FilterType[]).map((f) => (
-            <TouchableOpacity
-              key={f}
-              onPress={() => setFilter(f)}
-              style={[
-                styles.filterButton,
-                filter === f && { backgroundColor: colors.tint },
-              ]}
-            >
-              <ThemedText style={[styles.filterButtonText, filter === f && styles.filterButtonTextActive]}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.filterRow}>
-          <ThemedText style={styles.filterLabel}>Sort:</ThemedText>
-          <TouchableOpacity
-            onPress={() => setSort('renewal')}
-            style={[styles.filterButton, sort === 'renewal' && { backgroundColor: colors.tint }]}
+    <LinearGradient
+      style={StyleSheet.absoluteFill}
+      colors={ViewGradient.colors}
+      locations={[0, 1]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+    >
+      <KeyboardAvoidingView
+        style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <ThemedText style={[styles.filterButtonText, sort === 'renewal' && styles.filterButtonTextActive]}>
-              Renewal
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setSort('price-high')}
-            style={[styles.filterButton, sort === 'price-high' && { backgroundColor: colors.tint }]}
-          >
-            <ThemedText style={[styles.filterButtonText, sort === 'price-high' && styles.filterButtonTextActive]}>
-              Price ↓
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setSort('name')}
-            style={[styles.filterButton, sort === 'name' && { backgroundColor: colors.tint }]}
-          >
-            <ThemedText style={[styles.filterButtonText, sort === 'name' && styles.filterButtonTextActive]}>
-              Name
-            </ThemedText>
-          </TouchableOpacity>
-        </View>
-      </View>
+            <ProfileHeader />
+            <MonthlySpent />
 
-      {filteredAndSortedSubscriptions.length === 0 ? (
-        <ThemedView style={styles.emptyContainer}>
-          <ThemedText style={styles.emptyText}>
-            {searchQuery ? 'No subscriptions found' : 'No subscriptions yet'}
-          </ThemedText>
-          {!searchQuery && (
-            <TouchableOpacity
-              onPress={() => router.push('/create-subscription')}
-              style={[styles.button, { backgroundColor: colors.tint }]}
-            >
-              <ThemedText style={styles.buttonText}>Create Your First Subscription</ThemedText>
-            </TouchableOpacity>
-          )}
-        </ThemedView>
-      ) : (
-        <FlatList
-          data={filteredAndSortedSubscriptions}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.icon }]}>
-              <View style={styles.cardHeader}>
-                <ThemedText type="subtitle" style={styles.cardTitle}>{item.name}</ThemedText>
-                <View style={[styles.statusBadge, { backgroundColor: item.status === 'active' ? '#4CAF50' : item.status === 'expired' ? '#f44336' : '#9E9E9E' }]}>
-                  <ThemedText style={styles.statusText}>{item.status}</ThemedText>
-                </View>
+            <TextInput
+              style={[styles.searchInput, { color: colors.text, borderColor: colors.icon, backgroundColor: colors.background, fontFamily: FontFamily.regular }]}
+              placeholder="Search subscriptions..."
+              placeholderTextColor={colors.icon}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+
+            <View style={styles.filtersContainer}>
+              <View style={styles.filterRow}>
+                <ThemedText style={styles.filterLabel}>Filter:</ThemedText>
+                {(['all', 'active', 'inactive', 'expired'] as FilterType[]).map((f) => (
+                  <TouchableOpacity
+                    key={f}
+                    onPress={() => setFilter(f)}
+                    style={[
+                      styles.filterButton,
+                      filter === f && { backgroundColor: colors.tint },
+                    ]}
+                  >
+                    <ThemedText style={[styles.filterButtonText, filter === f && styles.filterButtonTextActive]}>
+                      {f.charAt(0).toUpperCase() + f.slice(1)}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
               </View>
-              <View style={styles.cardBody}>
-                <ThemedText style={styles.cardText}>
-                  {formatCurrency(item.price, item.currency)} / {item.frequency}
-                </ThemedText>
-                <ThemedText style={styles.cardText}>Category: {item.category}</ThemedText>
-                <ThemedText style={styles.cardText}>Payment: {item.paymentMethod}</ThemedText>
-                <View style={styles.renewalContainer}>
-                  <ThemedText style={styles.cardText}>
-                    Renews: {formatDate(item.renewalDate)}
+
+              <View style={styles.filterRow}>
+                <ThemedText style={styles.filterLabel}>Sort:</ThemedText>
+                <TouchableOpacity
+                  onPress={() => setSort('renewal')}
+                  style={[styles.filterButton, sort === 'renewal' && { backgroundColor: colors.tint }]}
+                >
+                  <ThemedText style={[styles.filterButtonText, sort === 'renewal' && styles.filterButtonTextActive]}>
+                    Renewal
                   </ThemedText>
-                  <ThemedText style={[styles.renewalBadge, isPast(new Date(item.renewalDate)) && styles.renewalBadgeExpired]}>
-                    {getDaysUntilRenewal(item.renewalDate)}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setSort('price-high')}
+                  style={[styles.filterButton, sort === 'price-high' && { backgroundColor: colors.tint }]}
+                >
+                  <ThemedText style={[styles.filterButtonText, sort === 'price-high' && styles.filterButtonTextActive]}>
+                    Price ↓
                   </ThemedText>
-                </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setSort('name')}
+                  style={[styles.filterButton, sort === 'name' && { backgroundColor: colors.tint }]}
+                >
+                  <ThemedText style={[styles.filterButtonText, sort === 'name' && styles.filterButtonTextActive]}>
+                    Name
+                  </ThemedText>
+                </TouchableOpacity>
               </View>
             </View>
-          )}
-          refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
-          }
-          contentContainerStyle={styles.listContent}
-        />
-      )}
-    </ThemedView>
+
+            {filteredAndSortedSubscriptions.length === 0 ? (
+              <ThemedView style={styles.emptyContainer}>
+                <ThemedText style={styles.emptyText}>
+                  {searchQuery ? 'No subscriptions found' : 'No subscriptions yet'}
+                </ThemedText>
+                {!searchQuery && (
+                  <TouchableOpacity
+                    onPress={() => router.push('/create-subscription')}
+                    style={[styles.button, { backgroundColor: colors.tint }]}
+                  >
+                    <ThemedText style={styles.buttonText}>Create Your First Subscription</ThemedText>
+                  </TouchableOpacity>
+                )}
+              </ThemedView>
+            ) : (
+              <FlatList
+                data={filteredAndSortedSubscriptions}
+                keyExtractor={(item) => item._id}
+                renderItem={({ item }) => (
+                  <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.icon }]}>
+                    <View style={styles.cardHeader}>
+                      <ThemedText type="subtitle" style={styles.cardTitle}>{item.name}</ThemedText>
+                      <View style={[styles.statusBadge, { backgroundColor: item.status === 'active' ? '#4CAF50' : item.status === 'expired' ? '#f44336' : '#9E9E9E' }]}>
+                        <ThemedText style={styles.statusText}>{item.status}</ThemedText>
+                      </View>
+                    </View>
+                    <View style={styles.cardBody}>
+                      <ThemedText style={styles.cardText}>
+                        {formatCurrency(item.price, item.currency)} / {item.frequency}
+                      </ThemedText>
+                      <ThemedText style={styles.cardText}>Category: {item.category}</ThemedText>
+                      <ThemedText style={styles.cardText}>Payment: {item.paymentMethod}</ThemedText>
+                      <View style={styles.renewalContainer}>
+                        <ThemedText style={styles.cardText}>
+                          Renews: {formatDate(item.renewalDate)}
+                        </ThemedText>
+                        <ThemedText style={[styles.renewalBadge, isPast(new Date(item.renewalDate)) && styles.renewalBadgeExpired]}>
+                          {getDaysUntilRenewal(item.renewalDate)}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </View>
+                )}
+                refreshControl={
+                  <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+                }
+                contentContainerStyle={styles.listContent}
+              />
+            )}
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+  },
+  scrollContent: {
+    flex: 1,
+    padding: 20,
+    paddingBottom: 100,
+    paddingTop: 10,
   },
   loadingContainer: {
     flex: 1,
