@@ -10,7 +10,7 @@ function getDefaultApiBaseUrl(): string {
     return `http://localhost:${API_PORT}`;
   }
   if (Platform.OS === "android") {
-    return `http://192.168.0.133:${API_PORT}`;
+    return `http://10.147.227.194:${API_PORT}`;
   }
   return `http://localhost:${API_PORT}`;
 }
@@ -88,6 +88,10 @@ export const subscriptionsApi = {
   getUserSubscriptions: async (userId: string) => {
     const response = await apiClient.get(`/subscriptions/user/${userId}`);
     return response.data;
+  },
+  getSubscriptionList: async () => {
+    const response = await apiClient.get("/subscriptions/list");
+    return response.data.data;
   },
 };
 

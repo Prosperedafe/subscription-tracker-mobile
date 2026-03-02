@@ -46,6 +46,7 @@ const styles = StyleSheet.create({
     width: "100%",
     overflow: "hidden",
     borderRadius: 12,
+    backgroundColor: "#101019",
   },
   blur: {
     borderRadius: 12,
@@ -53,17 +54,27 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     gap: 4,
+    justifyContent: "center",
+    alignItems: "center",
   },
   icon: {
-    fontSize: 20,
+    fontSize: 32,
     fontWeight: "bold",
+    borderRadius: 50,
+    borderColor: "#4D4D61",
+    borderWidth: 1,
+    textAlign: "center",
+    textAlignVertical: "center",
+    width: 50,
+    height: 50,
   },
   title: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "bold",
   },
   value: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: "bold",
+    marginTop: 4,
   },
 });

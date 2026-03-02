@@ -44,7 +44,7 @@ export function FormInput<T extends FieldValues>({
   onChangeTransform,
 }: FormInputProps<T>) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? "light"];
+  const colors = Colors[colorScheme ?? "dark"];
   const [isFocused, setIsFocused] = useState(false);
 
   const borderColor = isFocused ? INPUT_BORDER_FOCUSED : INPUT_BORDER_DEFAULT;
