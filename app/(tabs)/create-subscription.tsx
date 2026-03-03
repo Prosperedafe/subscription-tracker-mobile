@@ -1,8 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Colors, FontFamily } from "@/constants/theme";
+import { FontFamily } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { subscriptionsApi } from "@/lib/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -13,11 +12,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Modal,
   Platform,
   ScrollView,
-  StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -27,10 +26,10 @@ import { z } from "zod";
 
 import { BackButton } from "@/components/ui/BackButton";
 import { useSubscription } from "@/contexts/SubscriptionContext";
+import { createSubscriptionStyles } from "@/styles/subscription";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 const API_DATE_FORMAT = "yyyy-MM-dd";
-const DISPLAY_DATE_FORMAT = "MMMM do, yyyy";
 
 function toApiDate(date: Date): string {
   return format(date, API_DATE_FORMAT);
@@ -55,6 +54,7 @@ const subscriptionSchema = z.object({
   paymentMethod: z.string().min(1, "Payment method is required"),
   startDate: z.string().min(1, "Start date is required"),
   reminderDays: z.number().min(0).max(30),
+  icon: z.string().optional(),
 });
 
 type SubscriptionFormData = z.infer<typeof subscriptionSchema>;
@@ -62,12 +62,20 @@ type SubscriptionFormData = z.infer<typeof subscriptionSchema>;
 export default function CreateSubscriptionScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const colorScheme = useColorScheme();
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const insets = useSafeAreaInsets();
   const { selectedSubscription, setSelectedSubscription } = useSubscription();
-  console.log(selectedSubscription);
+
+  useEffect(() => {
+    if (
+      !selectedSubscription ||
+      !selectedSubscription.name ||
+      !selectedSubscription.icon
+    ) {
+      router.replace("/(tabs)/subscription-list");
+    }
+  }, [selectedSubscription]);
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [cyclePickerOpen, setCyclePickerOpen] = useState(false);
@@ -78,31 +86,33 @@ export default function CreateSubscriptionScreen() {
   const today = new Date();
   const maxStartDate = addDays(today, 7);
 
-  const {
-    control,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    formState: { errors },
-  } = useForm<SubscriptionFormData>({
-    resolver: zodResolver(subscriptionSchema),
-    defaultValues: {
-      name: selectedSubscription?.name || "",
-      plan: "",
-      price: selectedSubscription?.price || 0,
-      currency: "USD",
-      frequency: "monthly",
-      startDate: toApiDate(today),
-      paymentMethod: "",
-      reminderDays: 3,
-    },
-  });
+  const { handleSubmit, setValue, watch, reset } =
+    useForm<SubscriptionFormData>({
+      resolver: zodResolver(subscriptionSchema),
+      mode: "onChange",
+      defaultValues: {
+        name: selectedSubscription?.name || "",
+        plan: "",
+        price: selectedSubscription?.price || 0,
+        currency: "USD",
+        frequency: "monthly",
+        startDate: toApiDate(today),
+        paymentMethod: "",
+        reminderDays: 3,
+      },
+    });
 
   const frequency = watch("frequency");
   const reminderDays = watch("reminderDays");
   const startDate = watch("startDate");
   const planName = watch("plan");
+  const watchedName = watch("name");
+  const watchedPayment = watch("paymentMethod");
+
+  const isFormReady =
+    !isLoading &&
+    watchedName.trim().length >= 2 &&
+    watchedPayment.trim().length > 0;
   const selectedPlan = selectedSubscription?.plans?.find(
     (p) => p.planName === planName,
   );
@@ -110,18 +120,19 @@ export default function CreateSubscriptionScreen() {
   useFocusEffect(
     useCallback(() => {
       return () => {
-        // Runs when the screen loses focus (user navigates away)
-        setSelectedSubscription(null);
-        reset({
-          name: "",
-          plan: "",
-          price: 0,
-          currency: "USD",
-          frequency: "monthly",
-          startDate: toApiDate(new Date()),
-          paymentMethod: "",
-          reminderDays: 3,
-        });
+        if (AppState.currentState === "active") {
+          setSelectedSubscription(null);
+          reset({
+            name: "",
+            plan: "",
+            price: 0,
+            currency: "USD",
+            frequency: "monthly",
+            startDate: toApiDate(new Date()),
+            paymentMethod: "",
+            reminderDays: 3,
+          });
+        }
       };
     }, [setSelectedSubscription, reset]),
   );
@@ -178,19 +189,17 @@ export default function CreateSubscriptionScreen() {
         renewalDate.setMonth(renewalDate.getMonth() + 3);
       else if (data.frequency === "yearly")
         renewalDate.setFullYear(renewalDate.getFullYear() + 1);
-
       await mutation.mutateAsync({
         ...data,
         category: (selectedSubscription?.category as any) || "other",
         renewalDate: toApiDate(renewalDate),
         status: "active",
+        icon: selectedSubscription?.icon || "",
       });
     } finally {
       setIsLoading(false);
     }
   };
-
-  const colors = Colors[colorScheme ?? "dark"];
 
   const frequencies = [
     { label: "Monthly", value: "monthly" },
@@ -353,9 +362,9 @@ export default function CreateSubscriptionScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, !isFormReady && { opacity: 0.4 }]}
           onPress={handleSubmit(onSubmit)}
-          disabled={isLoading}
+          disabled={!isFormReady}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" />
@@ -580,164 +589,4 @@ export default function CreateSubscriptionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#050511",
-  },
-  header: {
-    paddingHorizontal: 20,
-    height: 60,
-    justifyContent: "center",
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  heroSection: {
-    marginTop: 10,
-    gap: 20,
-    marginBottom: 40,
-  },
-  iconWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: "#101019",
-    borderWidth: 1,
-    borderColor: "#1A1A2E",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  logo: {
-    width: 50,
-    height: 50,
-    resizeMode: "contain",
-  },
-  placeholderIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    backgroundColor: "#4649E5",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  placeholderText: {
-    color: "#fff",
-    fontSize: 24,
-    fontFamily: FontFamily.bold,
-  },
-  subscriptionName: {
-    fontSize: 28,
-    fontFamily: FontFamily.bold,
-    color: "#fff",
-  },
-  form: {
-    gap: 20,
-  },
-  groupLabel: {
-    fontSize: 12,
-    fontFamily: FontFamily.medium,
-    color: "#4D4D61",
-    marginLeft: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  fieldRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    backgroundColor: "#101019",
-    borderRadius: 12,
-  },
-  fieldLabel: {
-    fontSize: 16,
-    fontFamily: FontFamily.regular,
-    color: "#E4E4ED",
-  },
-  fieldValue: {
-    fontSize: 16,
-    fontFamily: FontFamily.medium,
-    color: "#fff",
-  },
-  pickerTrigger: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  priceInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  priceInput: {
-    fontSize: 16,
-    fontFamily: FontFamily.medium,
-    color: "#fff",
-    textAlign: "right",
-    minWidth: 60,
-  },
-  currencyLabel: {
-    fontSize: 12,
-    fontFamily: FontFamily.regular,
-    color: "#4D4D61",
-    marginLeft: 4,
-  },
-  textInput: {
-    fontSize: 16,
-    fontFamily: FontFamily.medium,
-    color: "#fff",
-    flex: 1,
-    marginLeft: 20,
-  },
-  footer: {
-    paddingHorizontal: 20,
-    backgroundColor: "#050511",
-    paddingTop: 10,
-  },
-  addButton: {
-    backgroundColor: "#4649E5",
-    height: 56,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#4649E5",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  addButtonText: {
-    fontSize: 18,
-    fontFamily: FontFamily.bold,
-    color: "#fff",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 40,
-  },
-  modalContent: {
-    backgroundColor: "#0A0A1A",
-    borderRadius: 20,
-    width: "100%",
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#1A1A2E",
-  },
-  modalOption: {
-    padding: 16,
-    alignItems: "center",
-  },
-  modalOptionText: {
-    fontSize: 18,
-    fontFamily: FontFamily.medium,
-    color: "#fff",
-  },
-});
+const styles = createSubscriptionStyles;

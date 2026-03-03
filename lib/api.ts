@@ -81,6 +81,7 @@ export const subscriptionsApi = {
     status?: "active" | "inactive" | "expired";
     startDate: string;
     renewalDate: string;
+    icon?: string;
   }) => {
     const response = await apiClient.post("/subscriptions", data);
     return response.data;
