@@ -37,18 +37,18 @@ export default function SignInScreen() {
   });
 
   const onSubmit = async (data: SignInFormData) => {
-    if (__DEV__) {
-      console.log({ email: data.email, password: data.password });
-    }
+    // if (__DEV__) {
+    //   console.log({ email: data.email, password: data.password });
+    // }
     setIsLoading(true);
     try {
       await signIn(data.email, data.password);
       router.replace('/(tabs)');
     } catch (error: any) {
-      if (__DEV__) {
-        console.log('[SignIn] error:', error);
-        console.log('[SignIn] error.response:', error?.response?.data);
-      }
+      // if (__DEV__) {
+      //   console.log('[SignIn] error:', error);
+      //   console.log('[SignIn] error.response:', error?.response?.data);
+      // }
       const isNetworkError = !error?.response && (error?.message === 'Network Error' || error?.code === 'ERR_NETWORK');
       const message = isNetworkError
         ? `Can't reach API at ${getApiBaseUrl()}. On a phone? Use your computer's IP in EXPO_PUBLIC_API_URL. Ensure backend listens on 0.0.0.0.`

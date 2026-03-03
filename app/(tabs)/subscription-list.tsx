@@ -18,20 +18,33 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useSubscription } from "@/contexts/SubscriptionContext";
+
 const SubscriptionList = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState("");
+  const { setSelectedSubscription } = useSubscription();
 
   const { data: subscriptions, isLoading } = useQuery({
     queryKey: ["subscriptions-list"],
     queryFn: () => subscriptionsApi.getSubscriptionList(),
   });
 
+  const handleAddSubscription = (item: any) => {
+    setSelectedSubscription({
+      name: item.name,
+      icon: item.icon,
+      price: item.price,
+      category: item.category,
+      plans: item.plans,
+    });
+    router.push("/(tabs)/create-subscription");
+  };
+
   const filteredSubscriptions = subscriptions?.filter((sub: any) =>
     sub.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
-
   const renderItem = ({ item }: { item: any }) => (
     <View style={styles.subscriptionItem}>
       <View style={styles.iconContainer}>
@@ -44,7 +57,10 @@ const SubscriptionList = () => {
         )}
       </View>
       <ThemedText style={styles.subscriptionName}>{item.name}</ThemedText>
-      <TouchableOpacity style={styles.addButton}>
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => handleAddSubscription(item)}
+      >
         <IconSymbol name="plus" size={20} color="#fff" />
       </TouchableOpacity>
     </View>

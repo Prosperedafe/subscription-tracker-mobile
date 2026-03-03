@@ -75,7 +75,7 @@ export const subscriptionsApi = {
     name: string;
     price: number;
     currency: "USD" | "EUR" | "GBP";
-    frequency: "daily" | "weekly" | "monthly" | "yearly";
+    frequency: "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
     category: "food" | "entertainment" | "health" | "education" | "other";
     paymentMethod: string;
     status?: "active" | "inactive" | "expired";

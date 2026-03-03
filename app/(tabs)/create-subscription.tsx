@@ -6,25 +6,31 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { subscriptionsApi } from "@/lib/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addMonths, format, isValid, parseISO } from "date-fns";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { addDays, format, isValid, parseISO } from "date-fns";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator,
+  Image,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { z } from "zod";
 
+import { BackButton } from "@/components/ui/BackButton";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import Ionicons from "@expo/vector-icons/Ionicons";
+
 const API_DATE_FORMAT = "yyyy-MM-dd";
-const DISPLAY_DATE_FORMAT = "MMM d, yyyy";
+const DISPLAY_DATE_FORMAT = "MMMM do, yyyy";
 
 function toApiDate(date: Date): string {
   return format(date, API_DATE_FORMAT);
@@ -40,32 +46,16 @@ function parseApiDate(value: string | undefined): Date {
   }
 }
 
-const subscriptionSchema = z
-  .object({
-    name: z
-      .string()
-      .min(2, "Name must be at least 2 characters")
-      .max(100, "Name must be at most 100 characters"),
-    price: z.number().min(0, "Price must be greater than or equal to 0"),
-    currency: z.enum(["USD", "EUR", "GBP"]),
-    frequency: z.enum(["daily", "weekly", "monthly", "yearly"]),
-    category: z.enum(["food", "entertainment", "health", "education", "other"]),
-    paymentMethod: z.string().min(1, "Payment method is required"),
-    status: z.enum(["active", "inactive", "expired"]).optional(),
-    startDate: z.string().min(1, "Start date is required"),
-    renewalDate: z.string().min(1, "Renewal date is required"),
-  })
-  .refine(
-    (data) => {
-      const start = new Date(data.startDate);
-      const renewal = new Date(data.renewalDate);
-      return renewal > start;
-    },
-    {
-      message: "Renewal date must be after start date",
-      path: ["renewalDate"],
-    },
-  );
+const subscriptionSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  plan: z.string().optional(),
+  price: z.number().min(0, "Price must be at least 0"),
+  currency: z.enum(["USD", "EUR", "GBP"]),
+  frequency: z.enum(["monthly", "quarterly", "yearly"]),
+  paymentMethod: z.string().min(1, "Payment method is required"),
+  startDate: z.string().min(1, "Start date is required"),
+  reminderDays: z.number().min(0).max(30),
+});
 
 type SubscriptionFormData = z.infer<typeof subscriptionSchema>;
 
@@ -76,39 +66,87 @@ export default function CreateSubscriptionScreen() {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const insets = useSafeAreaInsets();
+  const { selectedSubscription, setSelectedSubscription } = useSubscription();
+  console.log(selectedSubscription);
+
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [cyclePickerOpen, setCyclePickerOpen] = useState(false);
+  const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
+  const [paymentPickerOpen, setPaymentPickerOpen] = useState(false);
 
   const today = new Date();
-  const defaultRenewal = addMonths(today, 1);
-
-  const {
-    data: subscriptionsList,
-    isLoading: isSubscriptionLoading,
-    error: subscriptionError,
-    refetch: refetchSubscriptions,
-  } = useQuery({
-    queryKey: ["subscriptions", user?._id],
-    queryFn: () => subscriptionsApi.getSubscriptionList(),
-  });
+  const maxStartDate = addDays(today, 7);
 
   const {
     control,
     handleSubmit,
+    setValue,
+    watch,
+    reset,
     formState: { errors },
   } = useForm<SubscriptionFormData>({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: {
+      name: selectedSubscription?.name || "",
+      plan: "",
+      price: selectedSubscription?.price || 0,
       currency: "USD",
       frequency: "monthly",
-      category: "other",
-      status: "active",
       startDate: toApiDate(today),
-      renewalDate: toApiDate(defaultRenewal),
+      paymentMethod: "",
+      reminderDays: 3,
     },
   });
 
-  const [datePickerOpen, setDatePickerOpen] = useState<
-    "start" | "renewal" | null
-  >(null);
+  const frequency = watch("frequency");
+  const reminderDays = watch("reminderDays");
+  const startDate = watch("startDate");
+  const planName = watch("plan");
+  const selectedPlan = selectedSubscription?.plans?.find(
+    (p) => p.planName === planName,
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        // Runs when the screen loses focus (user navigates away)
+        setSelectedSubscription(null);
+        reset({
+          name: "",
+          plan: "",
+          price: 0,
+          currency: "USD",
+          frequency: "monthly",
+          startDate: toApiDate(new Date()),
+          paymentMethod: "",
+          reminderDays: 3,
+        });
+      };
+    }, [setSelectedSubscription, reset]),
+  );
+
+  useEffect(() => {
+    if (selectedSubscription) {
+      setValue("name", selectedSubscription.name);
+      if (selectedSubscription.price)
+        setValue("price", selectedSubscription.price);
+
+      if (selectedSubscription.plans?.length === 1) {
+        const plan = selectedSubscription.plans[0];
+        setValue("plan", plan.planName);
+        setValue("price", plan.price);
+        const dur = plan.duration.toLowerCase();
+        if (dur.includes("month")) setValue("frequency", "monthly");
+        else if (dur.includes("year")) setValue("frequency", "yearly");
+        else if (dur.includes("quarter")) setValue("frequency", "quarterly");
+      }
+    }
+  }, [selectedSubscription, setValue]);
+
+  const handleBack = () => {
+    router.push("/(tabs)/subscription-list");
+  };
 
   const mutation = useMutation({
     mutationFn: subscriptionsApi.create,
@@ -117,15 +155,15 @@ export default function CreateSubscriptionScreen() {
       Toast.show({
         type: "success",
         text1: "Success",
-        text2: "Subscription created successfully",
+        text2: "Subscription added!",
       });
-      setTimeout(() => router.back(), 1500);
+      setTimeout(() => router.back(), 1000);
     },
     onError: (error: any) => {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: error.response?.data?.message || "Failed to create subscription",
+        text2: error.response?.data?.message || "Failed to add subscription",
       });
     },
   });
@@ -133,7 +171,20 @@ export default function CreateSubscriptionScreen() {
   const onSubmit = async (data: SubscriptionFormData) => {
     setIsLoading(true);
     try {
-      await mutation.mutateAsync(data);
+      let renewalDate = new Date(data.startDate);
+      if (data.frequency === "monthly")
+        renewalDate.setMonth(renewalDate.getMonth() + 1);
+      else if (data.frequency === "quarterly")
+        renewalDate.setMonth(renewalDate.getMonth() + 3);
+      else if (data.frequency === "yearly")
+        renewalDate.setFullYear(renewalDate.getFullYear() + 1);
+
+      await mutation.mutateAsync({
+        ...data,
+        category: (selectedSubscription?.category as any) || "other",
+        renewalDate: toApiDate(renewalDate),
+        status: "active",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -141,410 +192,390 @@ export default function CreateSubscriptionScreen() {
 
   const colors = Colors[colorScheme ?? "dark"];
 
+  const frequencies = [
+    { label: "Monthly", value: "monthly" },
+    { label: "Quarterly", value: "quarterly" },
+    { label: "Yearly", value: "yearly" },
+  ];
+
+  const reminders = [
+    { label: "Same day", value: 0 },
+    { label: "1 day before", value: 1 },
+    { label: "3 days before", value: 3 },
+    { label: "1 week before", value: 7 },
+  ];
+
+  const paymentMethods = [
+    "Credit Card",
+    "Apple Pay",
+    "Google Pay",
+    "PayPal",
+    "Bank Transfer",
+    "Cash",
+  ];
+
   return (
-    <ThemedView style={styles.container}>
-      <KeyboardAvoidingView
-        style={[
-          styles.container,
-          { paddingTop: insets.top, paddingBottom: insets.bottom },
-        ]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+    <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <BackButton onPress={handleBack} />
+      </View>
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <ThemedText type="title" style={styles.title}>
-            Create Subscription
+        <View style={styles.heroSection}>
+          {selectedSubscription?.icon ? (
+            <Image
+              source={{ uri: selectedSubscription.icon }}
+              style={styles.logo}
+            />
+          ) : (
+            <View style={styles.placeholderIcon}>
+              <ThemedText style={styles.placeholderText}>
+                {selectedSubscription?.name?.[0] || "?"}
+              </ThemedText>
+            </View>
+          )}
+          <ThemedText style={styles.subscriptionName}>
+            {watch("name")}
           </ThemedText>
+        </View>
 
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>Name *</ThemedText>
-              <Controller
-                control={control}
-                name="name"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        color: colors.text,
-                        borderColor: colors.icon,
-                        fontFamily: FontFamily.regular,
-                      },
-                    ]}
-                    placeholder="Subscription name"
-                    placeholderTextColor={colors.icon}
-                    value={value}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                  />
-                )}
-              />
-              {errors.name && (
-                <ThemedText style={styles.error}>
-                  {errors.name.message}
-                </ThemedText>
-              )}
-            </View>
+        <View style={styles.form}>
+          <TouchableOpacity
+            style={styles.fieldRow}
+            onPress={() => setDatePickerOpen(true)}
+          >
+            <ThemedText style={styles.fieldLabel}>Started on</ThemedText>
+            <ThemedText style={styles.fieldValue}>
+              {format(parseApiDate(startDate), "MMM d, yyyy")}
+            </ThemedText>
+          </TouchableOpacity>
 
-            <View style={styles.row}>
-              <View style={[styles.inputContainer, styles.halfWidth]}>
-                <ThemedText style={styles.label}>Price *</ThemedText>
-                <Controller
-                  control={control}
-                  name="price"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          color: colors.text,
-                          borderColor: colors.icon,
-                          fontFamily: FontFamily.regular,
-                        },
-                      ]}
-                      placeholder="0.00"
-                      placeholderTextColor={colors.icon}
-                      value={value?.toString()}
-                      onBlur={onBlur}
-                      onChangeText={(text) => onChange(parseFloat(text) || 0)}
-                      keyboardType="decimal-pad"
-                    />
-                  )}
-                />
-                {errors.price && (
-                  <ThemedText style={styles.error}>
-                    {errors.price.message}
+          {selectedSubscription?.plans &&
+            selectedSubscription.plans.length > 0 && (
+              <TouchableOpacity
+                style={styles.fieldRow}
+                onPress={() => setPlanPickerOpen(true)}
+              >
+                <ThemedText style={styles.fieldLabel}>Plan</ThemedText>
+                <View style={styles.pickerTrigger}>
+                  <ThemedText style={styles.fieldValue}>
+                    {planName || "Select a plan"}
                   </ThemedText>
-                )}
-              </View>
-
-              <View style={[styles.inputContainer, styles.halfWidth]}>
-                <ThemedText style={styles.label}>Currency *</ThemedText>
-                <Controller
-                  control={control}
-                  name="currency"
-                  render={({ field: { onChange, value } }) => (
-                    <View style={styles.pickerContainer}>
-                      {(["USD", "EUR", "GBP"] as const).map((curr) => (
-                        <TouchableOpacity
-                          key={curr}
-                          onPress={() => onChange(curr)}
-                          style={[
-                            styles.pickerOption,
-                            value === curr && { backgroundColor: colors.tint },
-                          ]}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.pickerOptionText,
-                              value === curr && styles.pickerOptionTextActive,
-                            ]}
-                          >
-                            {curr}
-                          </ThemedText>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>Frequency *</ThemedText>
-              <Controller
-                control={control}
-                name="frequency"
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.pickerContainer}>
-                    {(["daily", "weekly", "monthly", "yearly"] as const).map(
-                      (freq) => (
-                        <TouchableOpacity
-                          key={freq}
-                          onPress={() => onChange(freq)}
-                          style={[
-                            styles.pickerOption,
-                            value === freq && { backgroundColor: colors.tint },
-                          ]}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.pickerOptionText,
-                              value === freq && styles.pickerOptionTextActive,
-                            ]}
-                          >
-                            {freq.charAt(0).toUpperCase() + freq.slice(1)}
-                          </ThemedText>
-                        </TouchableOpacity>
-                      ),
-                    )}
-                  </View>
-                )}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>Category *</ThemedText>
-              <Controller
-                control={control}
-                name="category"
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.pickerContainer}>
-                    {(
-                      [
-                        "food",
-                        "entertainment",
-                        "health",
-                        "education",
-                        "other",
-                      ] as const
-                    ).map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        onPress={() => onChange(cat)}
-                        style={[
-                          styles.pickerOption,
-                          value === cat && { backgroundColor: colors.tint },
-                        ]}
-                      >
-                        <ThemedText
-                          style={[
-                            styles.pickerOptionText,
-                            value === cat && styles.pickerOptionTextActive,
-                          ]}
-                        >
-                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                        </ThemedText>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>Payment Method *</ThemedText>
-              <Controller
-                control={control}
-                name="paymentMethod"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        color: colors.text,
-                        borderColor: colors.icon,
-                        fontFamily: FontFamily.regular,
-                      },
-                    ]}
-                    placeholder="e.g., Credit Card, PayPal"
-                    placeholderTextColor={colors.icon}
-                    value={value}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
+                  <Ionicons
+                    name="chevron-forward"
+                    size={14}
+                    color="#9BA1A6"
+                    style={{ marginLeft: 4 }}
                   />
-                )}
-              />
-              {errors.paymentMethod && (
-                <ThemedText style={styles.error}>
-                  {errors.paymentMethod.message}
-                </ThemedText>
-              )}
+                </View>
+              </TouchableOpacity>
+            )}
+
+          <View style={styles.fieldRow}>
+            <ThemedText style={styles.fieldLabel}>Price</ThemedText>
+            <View style={styles.priceInputContainer}>
+              <ThemedText style={styles.fieldValue}>
+                {watch("price")}
+              </ThemedText>
+              <ThemedText style={styles.currencyLabel}>USD</ThemedText>
             </View>
-
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>Status</ThemedText>
-              <Controller
-                control={control}
-                name="status"
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.pickerContainer}>
-                    {(["active", "inactive", "expired"] as const).map(
-                      (stat) => (
-                        <TouchableOpacity
-                          key={stat}
-                          onPress={() => onChange(stat)}
-                          style={[
-                            styles.pickerOption,
-                            value === stat && { backgroundColor: colors.tint },
-                          ]}
-                        >
-                          <ThemedText
-                            style={[
-                              styles.pickerOptionText,
-                              value === stat && styles.pickerOptionTextActive,
-                            ]}
-                          >
-                            {stat.charAt(0).toUpperCase() + stat.slice(1)}
-                          </ThemedText>
-                        </TouchableOpacity>
-                      ),
-                    )}
-                  </View>
-                )}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>Start Date *</ThemedText>
-              <Controller
-                control={control}
-                name="startDate"
-                render={({ field: { onChange, value } }) =>
-                  Platform.OS === "web" ? (
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          color: colors.text,
-                          borderColor: colors.icon,
-                          fontFamily: FontFamily.regular,
-                        },
-                      ]}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={colors.icon}
-                      value={value || ""}
-                      onChangeText={onChange}
-                      // @ts-expect-error - type="date" is valid for web
-                      type="date"
-                    />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        style={[
-                          styles.input,
-                          styles.dateTouchable,
-                          {
-                            borderColor: colors.icon,
-                            fontFamily: FontFamily.regular,
-                          },
-                        ]}
-                        onPress={() => setDatePickerOpen("start")}
-                      >
-                        <ThemedText
-                          style={{ color: value ? colors.text : colors.icon }}
-                        >
-                          {value
-                            ? format(parseApiDate(value), DISPLAY_DATE_FORMAT)
-                            : "Tap to pick date"}
-                        </ThemedText>
-                      </TouchableOpacity>
-                      {datePickerOpen === "start" && (
-                        <DateTimePicker
-                          value={parseApiDate(value)}
-                          mode="date"
-                          display={
-                            Platform.OS === "ios" ? "spinner" : "default"
-                          }
-                          onChange={(_, selectedDate) => {
-                            setDatePickerOpen(null);
-                            if (selectedDate) onChange(toApiDate(selectedDate));
-                          }}
-                        />
-                      )}
-                    </>
-                  )
-                }
-              />
-              {errors.startDate && (
-                <ThemedText style={styles.error}>
-                  {errors.startDate.message}
-                </ThemedText>
-              )}
-            </View>
-
-            <View style={styles.inputContainer}>
-              <ThemedText style={styles.label}>Renewal Date *</ThemedText>
-              <Controller
-                control={control}
-                name="renewalDate"
-                render={({ field: { onChange, value } }) =>
-                  Platform.OS === "web" ? (
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          color: colors.text,
-                          borderColor: colors.icon,
-                          fontFamily: FontFamily.regular,
-                        },
-                      ]}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={colors.icon}
-                      value={value || ""}
-                      onChangeText={onChange}
-                      // @ts-expect-error - type="date" is valid for web
-                      type="date"
-                    />
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        style={[
-                          styles.input,
-                          styles.dateTouchable,
-                          {
-                            borderColor: colors.icon,
-                            fontFamily: FontFamily.regular,
-                          },
-                        ]}
-                        onPress={() => setDatePickerOpen("renewal")}
-                      >
-                        <ThemedText
-                          style={{ color: value ? colors.text : colors.icon }}
-                        >
-                          {value
-                            ? format(parseApiDate(value), DISPLAY_DATE_FORMAT)
-                            : "Tap to pick date"}
-                        </ThemedText>
-                      </TouchableOpacity>
-                      {datePickerOpen === "renewal" && (
-                        <DateTimePicker
-                          value={parseApiDate(value)}
-                          mode="date"
-                          display={
-                            Platform.OS === "ios" ? "spinner" : "default"
-                          }
-                          onChange={(_, selectedDate) => {
-                            setDatePickerOpen(null);
-                            if (selectedDate) onChange(toApiDate(selectedDate));
-                          }}
-                        />
-                      )}
-                    </>
-                  )
-                }
-              />
-              {errors.renewalDate && (
-                <ThemedText style={styles.error}>
-                  {errors.renewalDate.message}
-                </ThemedText>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: colors.tint }]}
-              onPress={handleSubmit(onSubmit)}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <ThemedText style={styles.buttonText}>
-                  Create Subscription
-                </ThemedText>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => router.back()}
-            >
-              <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
-            </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+
+          <TouchableOpacity
+            style={styles.fieldRow}
+            onPress={() =>
+              !selectedSubscription?.plans && setCyclePickerOpen(true)
+            }
+            activeOpacity={selectedSubscription?.plans ? 1 : 0.7}
+          >
+            <ThemedText style={styles.fieldLabel}>Duration</ThemedText>
+            <View style={styles.priceInputContainer}>
+              <ThemedText style={styles.fieldValue}>
+                {selectedPlan?.duration ||
+                  (frequency
+                    ? frequency.charAt(0).toUpperCase() + frequency.slice(1)
+                    : "Monthly")}
+              </ThemedText>
+              {!selectedSubscription?.plans && (
+                <Ionicons
+                  name="chevron-down"
+                  size={14}
+                  color="#9BA1A6"
+                  style={{ marginLeft: 4 }}
+                />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.fieldRow}
+            onPress={() => setPaymentPickerOpen(true)}
+          >
+            <ThemedText style={styles.fieldLabel}>Payment</ThemedText>
+            <View style={styles.pickerTrigger}>
+              <ThemedText style={styles.fieldValue}>
+                {watch("paymentMethod") || "Select method"}
+              </ThemedText>
+              <Ionicons
+                name="chevron-down"
+                size={14}
+                color="#9BA1A6"
+                style={{ marginLeft: 4 }}
+              />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.fieldRow, { borderBottomWidth: 0 }]}
+            onPress={() => setReminderPickerOpen(true)}
+          >
+            <ThemedText style={styles.fieldLabel}>Remind me</ThemedText>
+            <View style={styles.pickerTrigger}>
+              <ThemedText style={styles.fieldValue}>
+                {reminderDays === 0
+                  ? "Same day"
+                  : `${reminderDays} days before`}
+              </ThemedText>
+              <Ionicons
+                name="chevron-down"
+                size={14}
+                color="#9BA1A6"
+                style={{ marginLeft: 4 }}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={handleSubmit(onSubmit)}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <ThemedText style={styles.addButtonText}>
+              Add Subscription
+            </ThemedText>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {datePickerOpen && (
+        <DateTimePicker
+          value={parseApiDate(startDate)}
+          mode="date"
+          minimumDate={today}
+          maximumDate={maxStartDate}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={(_, date) => {
+            setDatePickerOpen(false);
+            if (date) setValue("startDate", toApiDate(date));
+          }}
+        />
+      )}
+
+      <Modal visible={cyclePickerOpen} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setCyclePickerOpen(false)}
+        >
+          <View style={styles.modalContent}>
+            {frequencies.map((f) => (
+              <TouchableOpacity
+                key={f.value}
+                style={styles.modalOption}
+                onPress={() => {
+                  setValue("frequency", f.value as any);
+                  setCyclePickerOpen(false);
+                }}
+              >
+                <ThemedText
+                  style={[
+                    styles.modalOptionText,
+                    frequency === f.value && { color: "#4649E5" },
+                  ]}
+                >
+                  {f.label}
+                </ThemedText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={reminderPickerOpen} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setReminderPickerOpen(false)}
+        >
+          <View style={styles.modalContent}>
+            {reminders.map((r) => (
+              <TouchableOpacity
+                key={r.value}
+                style={styles.modalOption}
+                onPress={() => {
+                  setValue("reminderDays", r.value);
+                  setReminderPickerOpen(false);
+                }}
+              >
+                <ThemedText
+                  style={[
+                    styles.modalOptionText,
+                    reminderDays === r.value && { color: "#4649E5" },
+                  ]}
+                >
+                  {r.label}
+                </ThemedText>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={planPickerOpen} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setPlanPickerOpen(false)}
+        >
+          <View style={styles.modalContent}>
+            <View
+              style={{
+                padding: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: "#1A1A2E",
+              }}
+            >
+              <ThemedText
+                style={{
+                  fontSize: 18,
+                  fontFamily: FontFamily.bold,
+                  color: "#fff",
+                  textAlign: "center",
+                }}
+              >
+                Select Plan
+              </ThemedText>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {selectedSubscription?.plans?.map((p) => (
+                <TouchableOpacity
+                  key={p.planName}
+                  style={[
+                    styles.modalOption,
+                    { borderBottomWidth: 1, borderBottomColor: "#101019" },
+                  ]}
+                  onPress={() => {
+                    setValue("plan", p.planName);
+                    setValue("price", p.price);
+                    const dur = p.duration.toLowerCase();
+                    if (dur.includes("month")) setValue("frequency", "monthly");
+                    else if (dur.includes("year"))
+                      setValue("frequency", "yearly");
+                    else if (dur.includes("quarter"))
+                      setValue("frequency", "quarterly");
+                    setPlanPickerOpen(false);
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      paddingHorizontal: 10,
+                    }}
+                  >
+                    <View>
+                      <ThemedText
+                        style={[
+                          styles.modalOptionText,
+                          planName === p.planName && { color: "#4649E5" },
+                        ]}
+                      >
+                        {p.planName}
+                      </ThemedText>
+                      <ThemedText style={{ fontSize: 12, color: "#9BA1A6" }}>
+                        {p.duration}
+                      </ThemedText>
+                    </View>
+                    <ThemedText
+                      style={{
+                        fontSize: 16,
+                        fontFamily: FontFamily.bold,
+                        color: "#fff",
+                      }}
+                    >
+                      ${p.price}
+                    </ThemedText>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={paymentPickerOpen} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setPaymentPickerOpen(false)}
+        >
+          <View style={styles.modalContent}>
+            <View
+              style={{
+                padding: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: "#1A1A2E",
+              }}
+            >
+              <ThemedText
+                style={{
+                  fontSize: 18,
+                  fontFamily: FontFamily.bold,
+                  color: "#fff",
+                  textAlign: "center",
+                }}
+              >
+                Select Payment Method
+              </ThemedText>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {paymentMethods.map((method) => (
+                <TouchableOpacity
+                  key={method}
+                  style={[
+                    styles.modalOption,
+                    { borderBottomWidth: 1, borderBottomColor: "#101019" },
+                  ]}
+                  onPress={() => {
+                    setValue("paymentMethod", method);
+                    setPaymentPickerOpen(false);
+                  }}
+                >
+                  <ThemedText
+                    style={[
+                      styles.modalOptionText,
+                      watch("paymentMethod") === method && { color: "#4649E5" },
+                    ]}
+                  >
+                    {method}
+                  </ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ThemedView>
   );
 }
@@ -552,83 +583,161 @@ export default function CreateSubscriptionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#050511",
   },
-  scrollContent: {
-    padding: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 24,
-  },
-  form: {
-    width: "100%",
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  halfWidth: {
-    flex: 1,
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    marginBottom: 8,
-    fontWeight: "600",
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  dateTouchable: {
+  header: {
+    paddingHorizontal: 20,
+    height: 60,
     justifyContent: "center",
   },
-  pickerContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  pickerOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  heroSection: {
+    marginTop: 10,
+    gap: 20,
+    marginBottom: 40,
+  },
+  iconWrapper: {
+    width: 80,
+    height: 80,
     borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.1)",
+    backgroundColor: "#101019",
+    borderWidth: 1,
+    borderColor: "#1A1A2E",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    overflow: "hidden",
   },
-  pickerOptionText: {
-    fontSize: 14,
+  logo: {
+    width: 50,
+    height: 50,
+    resizeMode: "contain",
   },
-  pickerOptionTextActive: {
+  placeholderIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: "#4649E5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  placeholderText: {
     color: "#fff",
-    fontWeight: "600",
+    fontSize: 24,
+    fontFamily: FontFamily.bold,
   },
-  error: {
-    color: "#ff4444",
+  subscriptionName: {
+    fontSize: 28,
+    fontFamily: FontFamily.bold,
+    color: "#fff",
+  },
+  form: {
+    gap: 20,
+  },
+  groupLabel: {
     fontSize: 12,
-    marginTop: 4,
-  },
-  button: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  cancelButton: {
-    padding: 16,
-    alignItems: "center",
+    fontFamily: FontFamily.medium,
+    color: "#4D4D61",
+    marginLeft: 16,
     marginTop: 12,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
-  cancelButtonText: {
+  fieldRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    backgroundColor: "#101019",
+    borderRadius: 12,
+  },
+  fieldLabel: {
     fontSize: 16,
-    textDecorationLine: "underline",
+    fontFamily: FontFamily.regular,
+    color: "#E4E4ED",
+  },
+  fieldValue: {
+    fontSize: 16,
+    fontFamily: FontFamily.medium,
+    color: "#fff",
+  },
+  pickerTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  priceInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  priceInput: {
+    fontSize: 16,
+    fontFamily: FontFamily.medium,
+    color: "#fff",
+    textAlign: "right",
+    minWidth: 60,
+  },
+  currencyLabel: {
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    color: "#4D4D61",
+    marginLeft: 4,
+  },
+  textInput: {
+    fontSize: 16,
+    fontFamily: FontFamily.medium,
+    color: "#fff",
+    flex: 1,
+    marginLeft: 20,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    backgroundColor: "#050511",
+    paddingTop: 10,
+  },
+  addButton: {
+    backgroundColor: "#4649E5",
+    height: 56,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#4649E5",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  addButtonText: {
+    fontSize: 18,
+    fontFamily: FontFamily.bold,
+    color: "#fff",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  modalContent: {
+    backgroundColor: "#0A0A1A",
+    borderRadius: 20,
+    width: "100%",
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#1A1A2E",
+  },
+  modalOption: {
+    padding: 16,
+    alignItems: "center",
+  },
+  modalOptionText: {
+    fontSize: 18,
+    fontFamily: FontFamily.medium,
+    color: "#fff",
   },
 });

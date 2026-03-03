@@ -6,7 +6,7 @@ interface UpcomingSubscriptionsProps {
 }
 
 export const UpcomingSubscriptions = ({ data }: UpcomingSubscriptionsProps) => {
-  console.log(data);
+  // console.log(data);
   return (
     <View>
       <ThemedText>Upcoming Payments</ThemedText>

@@ -18,6 +18,7 @@ import {
 
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { queryClient } from "@/lib/queryClient";
 
@@ -50,19 +51,21 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ThemeProvider value={DarkTheme}>
-          <ProtectedRoute>
-            <Stack>
-              <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-              <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            </Stack>
-            <StatusBar style="auto" />
-            <Toast />
-          </ProtectedRoute>
-        </ThemeProvider>
-      </AuthProvider>
+      <SubscriptionProvider>
+        <AuthProvider>
+          <ThemeProvider value={DarkTheme}>
+            <ProtectedRoute>
+              <Stack>
+                <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+                <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              </Stack>
+              <StatusBar style="auto" />
+              <Toast />
+            </ProtectedRoute>
+          </ThemeProvider>
+        </AuthProvider>
+      </SubscriptionProvider>
     </QueryClientProvider>
   );
 }

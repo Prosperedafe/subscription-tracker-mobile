@@ -39,7 +39,7 @@ export default function SignUpScreen() {
 
   const onSubmit = async (data: SignUpFormData) => {
     if (__DEV__) {
-      console.log(data);
+      // console.log(data);
     }
     setIsLoading(true);
     try {
@@ -47,7 +47,7 @@ export default function SignUpScreen() {
       router.replace('/(tabs)');
     } catch (error: any) {
       if (__DEV__) {
-        console.log(error);
+        // console.log(error);
       }
       const isNetworkError = !error?.response && (error?.message === 'Network Error' || error?.code === 'ERR_NETWORK');
       const message = isNetworkError
