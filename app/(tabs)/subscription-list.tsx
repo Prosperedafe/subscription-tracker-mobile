@@ -1,8 +1,11 @@
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { BackButton } from "@/components/ui/BackButton";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { ViewContainer } from "@/components/ui/ViewContainer";
 import { Colors } from "@/constants/theme";
+import { useSubscription } from "@/contexts/SubscriptionContext";
 import { subscriptionsApi } from "@/lib/api";
+import { subscriptionListStyles } from "@/styles/subscription";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
@@ -13,12 +16,9 @@ import {
     Image,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { useSubscription } from "@/contexts/SubscriptionContext";
-import { subscriptionListStyles } from "@/styles/subscription";
 
 const SubscriptionList = () => {
   const router = useRouter();
@@ -67,14 +67,17 @@ const SubscriptionList = () => {
   );
 
   return (
-    <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+    <ViewContainer style={{ paddingHorizontal: 20 }}>
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
+        <BackButton
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)");
+            }
+          }}
+        />
         <ThemedText style={styles.title}>All Subscriptions</ThemedText>
       </View>
 
@@ -109,7 +112,7 @@ const SubscriptionList = () => {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </ThemedView>
+    </ViewContainer>
   );
 };
 

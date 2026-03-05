@@ -2,7 +2,7 @@ import { ProfileHeader } from "@/components/profile-header";
 import { MonthlySpent } from "@/components/Subscriptions/MonthlySpent";
 import { UpcomingSubscriptions } from "@/components/Subscriptions/Upcoming";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
+import { ViewContainer } from "@/components/ui/ViewContainer";
 import { useAuth } from "@/contexts/AuthContext";
 import { subscriptionsApi } from "@/lib/api";
 import { homeStyles as styles } from "@/styles";
@@ -18,7 +18,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface Subscription {
   _id: string;
@@ -39,7 +38,6 @@ interface Subscription {
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
@@ -90,27 +88,27 @@ export default function DashboardScreen() {
 
   if (isLoading) {
     return (
-      <ThemedView style={styles.loadingContainer}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4649E5" />
-      </ThemedView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <ThemedView style={styles.container}>
+      <ViewContainer>
         <ThemedText style={styles.errorText}>
           Error loading subscriptions
         </ThemedText>
         <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
           <ThemedText style={styles.buttonText}>Retry</ThemedText>
         </TouchableOpacity>
-      </ThemedView>
+      </ViewContainer>
     );
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <ViewContainer>
       <FlatList
         data={subscriptions}
         keyExtractor={(item) => item._id}
@@ -119,7 +117,7 @@ export default function DashboardScreen() {
             style={styles.subCard}
             onPress={() =>
               router.push({
-                pathname: "/create-subscription",
+                pathname: "/subscription-details",
                 params: { id: item._id },
               })
             }
@@ -150,7 +148,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
         ListHeaderComponent={
-          <View style={{ paddingTop: insets.top + 20 }}>
+          <View style={{ paddingTop: 10 }}>
             <ProfileHeader />
             <MonthlySpent amount={totalSpending} />
             {upcomingRenewals.length > 0 && (
@@ -186,6 +184,6 @@ export default function DashboardScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
-    </ThemedView>
+    </ViewContainer>
   );
 }

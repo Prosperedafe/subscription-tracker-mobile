@@ -73,6 +73,7 @@ export const authApi = {
 export const subscriptionsApi = {
   create: async (data: {
     name: string;
+    plan?: string;
     price: number;
     currency: "USD" | "EUR" | "GBP";
     frequency: "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
@@ -93,6 +94,14 @@ export const subscriptionsApi = {
   getSubscriptionList: async () => {
     const response = await apiClient.get("/subscriptions/list");
     return response.data.data;
+  },
+  getById: async (id: string) => {
+    const response = await apiClient.get(`/subscriptions/${id}`);
+    return response.data;
+  },
+  delete: async (id: string) => {
+    const response = await apiClient.delete(`/subscriptions/${id}`);
+    return response.data;
   },
 };
 

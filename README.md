@@ -1,6 +1,6 @@
-# Subscription Tracker Mobile App
+# Lens
 
-A modern React Native mobile application for tracking and managing subscriptions, built with Expo and React Query.
+Lens is a modern React Native mobile application for tracking and managing subscriptions, built with Expo and React Query.
 
 ## Features
 
@@ -41,9 +41,9 @@ A modern React Native mobile application for tracking and managing subscriptions
 2. **Configure API URL** (if needed)
 
    For React Native on physical devices, you'll need to update the API base URL in `lib/api.ts` to use your computer's IP address instead of `localhost`:
-   
+
    ```typescript
-   const API_BASE_URL = 'http://YOUR_IP_ADDRESS:5500';
+   const API_BASE_URL = "http://YOUR_IP_ADDRESS:5500";
    ```
 
 3. **Start the backend server**
@@ -57,7 +57,6 @@ A modern React Native mobile application for tracking and managing subscriptions
    ```
 
 5. **Run on your preferred platform**
-
    - Press `i` for iOS simulator
    - Press `a` for Android emulator
    - Press `w` for web browser
@@ -107,6 +106,7 @@ All authenticated requests include a Bearer token in the Authorization header.
 ## Development
 
 The app uses:
+
 - File-based routing with Expo Router
 - React Query for server state management
 - React Hook Form with Zod validation

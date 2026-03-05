@@ -1,82 +1,75 @@
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { format } from 'date-fns';
-import { useAuth } from '@/contexts/AuthContext';
-import { ThemedText } from '@/components/themed-text';
-import { ViewGradient } from '@/constants/theme';
+import { ThemedText } from "@/components/themed-text";
+import { BackButton } from "@/components/ui/BackButton";
+import { ViewContainer } from "@/components/ui/ViewContainer";
+import { FontFamily } from "@/constants/theme";
+import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Alert, Image, StyleSheet, TouchableOpacity, View } from "react-native";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
 
   const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: () => {
-            signOut();
-            router.replace('/sign-in');
-          },
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: () => {
+          signOut();
+          router.replace("/sign-in");
         },
-      ]
-    );
+      },
+    ]);
   };
 
   if (!user) {
     return (
-      <LinearGradient
-        colors={ViewGradient.colors}
-        style={styles.gradient}
-      >
-        <View style={styles.container}>
-          <ThemedText style={styles.loadingText}>Loading...</ThemedText>
-        </View>
-      </LinearGradient>
+      <ViewContainer style={{ paddingHorizontal: 20 }}>
+        <ThemedText style={styles.loadingText}>Loading...</ThemedText>
+      </ViewContainer>
     );
   }
 
   return (
-    <LinearGradient
-      colors={ViewGradient.colors}
-      style={styles.gradient}
-    >
-      <View style={styles.container}>
-        <ThemedText type="title" style={styles.title}>Profile</ThemedText>
-
-        <View style={styles.card}>
-          <View style={styles.infoRow}>
-            <ThemedText style={styles.label}>Name</ThemedText>
-            <ThemedText style={styles.value}>{user.name}</ThemedText>
-          </View>
-
-          <View style={styles.infoRow}>
-            <ThemedText style={styles.label}>Email</ThemedText>
-            <ThemedText style={styles.value}>{user.email}</ThemedText>
-          </View>
-
-          <View style={styles.infoRow}>
-            <ThemedText style={styles.label}>Member Since</ThemedText>
-            <ThemedText style={styles.value}>
-              {format(new Date(user.createdAt), 'MMM dd, yyyy')}
-            </ThemedText>
-          </View>
+    <ViewContainer style={{ paddingHorizontal: 20 }}>
+      <BackButton
+        onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(tabs)");
+          }
+        }}
+      />
+      <View style={styles.profileImageContainer}>
+        <Image
+          source={require("@/assets/icons/profile-icon.png")}
+          style={styles.profileImage}
+        />
+        <ThemedText style={styles.profileName}>{user.name}</ThemedText>
+      </View>
+      <View style={styles.card}>
+        <View style={styles.infoRow}>
+          <ThemedText style={styles.label}>Email</ThemedText>
+          <ThemedText style={styles.value}>{user.email}</ThemedText>
         </View>
 
-        <TouchableOpacity
-          style={styles.signOutButton}
-          onPress={handleSignOut}
-        >
-          <ThemedText style={styles.signOutButtonText}>Logout</ThemedText>
-        </TouchableOpacity>
+        <View style={styles.infoRow}>
+          <ThemedText style={styles.label}>Member Since</ThemedText>
+          <ThemedText style={styles.value}>
+            {format(new Date(user.createdAt), "MMM dd, yyyy")}
+          </ThemedText>
+        </View>
       </View>
-    </LinearGradient>
+
+      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+        <ThemedText style={styles.signOutButtonText}>Logout</ThemedText>
+      </TouchableOpacity>
+    </ViewContainer>
   );
 }
 
@@ -89,48 +82,63 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   loadingText: {
-    color: '#fff',
-    textAlign: 'center',
+    color: "#fff",
+    textAlign: "center",
     marginTop: 40,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 24,
-    color: '#fff',
+    color: "#fff",
   },
   card: {
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 24,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    gap: 20,
+    marginTop: 20,
+    marginBottom: 100,
   },
   infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    backgroundColor: "#101019",
+    borderRadius: 12,
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.8)",
   },
   value: {
     fontSize: 16,
-    color: '#fff',
+    color: "#fff",
   },
   signOutButton: {
     padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: "center",
+    backgroundColor: "#FD3464",
   },
   signOutButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
+  },
+  profileImageContainer: {
+    alignItems: "center",
+    marginVertical: 24,
+  },
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 24,
+  },
+  profileName: {
+    fontSize: 26,
+    fontFamily: FontFamily.semiBold,
+    color: "#fff",
   },
 });

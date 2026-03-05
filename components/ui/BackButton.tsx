@@ -8,7 +8,7 @@ interface BackButtonProps {
 
 export const BackButton = ({ onPress, color = "#E4E4ED" }: BackButtonProps) => {
   return (
-    <TouchableOpacity onPress={onPress}>
+    <TouchableOpacity style={{ paddingVertical: 10 }} onPress={onPress}>
       <Svg width="31" height="14" viewBox="0 0 31 14" fill="none">
         <Path
           fillRule="evenodd"

@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "subscription-tracker-mobile",
-    "slug": "subscription-tracker-mobile",
+    "name": "Lens",
+    "slug": "lens",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "subscriptiontrackermobile",
+    "scheme": "lens",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {

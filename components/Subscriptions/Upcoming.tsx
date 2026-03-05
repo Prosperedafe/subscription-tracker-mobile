@@ -1,7 +1,14 @@
 import { FontFamily } from "@/constants/theme";
 import { differenceInDays } from "date-fns";
+import { useRouter } from "expo-router";
 import React from "react";
-import { FlatList, Image, StyleSheet, View } from "react-native";
+import {
+  FlatList,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { ThemedText } from "../themed-text";
 
 interface UpcomingSubscriptionsProps {
@@ -9,6 +16,8 @@ interface UpcomingSubscriptionsProps {
 }
 
 export const UpcomingSubscriptions = ({ data }: UpcomingSubscriptionsProps) => {
+  const router = useRouter();
+
   const getDaysUntilRenewal = (dateString: string) => {
     const days = differenceInDays(new Date(dateString), new Date());
     if (days < 0) return "Expired";
@@ -21,7 +30,15 @@ export const UpcomingSubscriptions = ({ data }: UpcomingSubscriptionsProps) => {
     const daysLeft = getDaysUntilRenewal(item.renewalDate);
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() =>
+          router.push({
+            pathname: "/subscription-details",
+            params: { id: item._id },
+          })
+        }
+      >
         <View style={styles.cardHeader}>
           <View style={styles.iconBackground}>
             {item.icon ? (
@@ -47,7 +64,7 @@ export const UpcomingSubscriptions = ({ data }: UpcomingSubscriptionsProps) => {
             <ThemedText style={styles.dueHighlight}>{daysLeft}</ThemedText> days
           </ThemedText>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

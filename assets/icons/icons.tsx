@@ -1,5 +1,5 @@
-import React from 'react';
-import Svg, { Circle, G, Path } from 'react-native-svg';
+import React from "react";
+import Svg, { Circle, G, Path } from "react-native-svg";
 
 const size = 24;
 
@@ -36,8 +36,8 @@ export const SettingsIcon = ({ color }: { color: string }) => (
   </Svg>
 );
 
-export const AddIcon = ({ color }: { color: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+export const AddIcon = ({ color = "#fff" }: { color: string }) => (
+  <Svg width="48" height="48" viewBox="0 0 48 48" fill="none">
     <Circle cx="24" cy="24" r="24" fill={color} />
     <Path
       d="M24 16.5V31.5M31.5 24H16.5"

@@ -174,6 +174,7 @@ export const subscriptionListStyles = StyleSheet.create({
     alignItems: "center",
     marginTop: 10,
     marginBottom: 20,
+    gap: 20,
   },
   backButton: {
     marginRight: 15,
