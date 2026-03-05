@@ -1,39 +1,26 @@
-import { BlurView } from "expo-blur";
+import { FontFamily } from "@/constants/theme";
+import React from "react";
 import { StyleSheet, View } from "react-native";
 import { ThemedText } from "../themed-text";
 
-export const MonthlySpent = () => {
-  // const { user } = useAuth();
-  // const totalSpending = useMemo(() => {
-  //     const activeSubs = subscriptions.filter((sub) => sub.status === 'active');
-  //     return activeSubs.reduce((total, sub) => {
-  //         let monthlyPrice = sub.price;
-  //         if (sub.frequency === 'daily') monthlyPrice = sub.price * 30;
-  //         if (sub.frequency === 'weekly') monthlyPrice = sub.price * 4;
-  //         if (sub.frequency === 'yearly') monthlyPrice = sub.price / 12;
-  //         return total + monthlyPrice;
-  //     }, 0);
-  // }, [user]);
+interface MonthlySpentProps {
+  amount: number;
+}
 
-  const BLUR_INTENSITY = 40;
+export const MonthlySpent = ({ amount }: MonthlySpentProps) => {
   return (
     <View style={styles.container}>
-      <BlurView
-        intensity={BLUR_INTENSITY}
-        tint="dark"
-        style={[StyleSheet.absoluteFill, styles.blur]}
-        // {...(Platform.OS === 'android' && { experimentalBlurMethod: 'dimezisBlurView' as const })}
-      />
       <View style={styles.content}>
-        <ThemedText type="subtitle" style={styles.icon}>
-          $
+        <View style={styles.iconCircle}>
+          <ThemedText style={styles.icon}>$</ThemedText>
+        </View>
+        <ThemedText style={styles.value}>
+          {amount.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
         </ThemedText>
-        <ThemedText type="subtitle" style={styles.value}>
-          100
-        </ThemedText>
-        <ThemedText type="subtitle" style={styles.title}>
-          Amount spent this month
-        </ThemedText>
+        <ThemedText style={styles.subtitle}>Amount Spent this month</ThemedText>
       </View>
     </View>
   );
@@ -41,40 +28,54 @@ export const MonthlySpent = () => {
 
 const styles = StyleSheet.create({
   container: {
-    position: "relative",
-    minHeight: 100,
     width: "100%",
+    borderRadius: 20,
+    backgroundColor: "#4649E5",
     overflow: "hidden",
-    borderRadius: 12,
-    backgroundColor: "#101019",
+    marginBottom: 30,
+    borderWidth: 1,
+    padding: 24,
   },
-  blur: {
-    borderRadius: 12,
+  gridContainer: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   content: {
-    padding: 16,
-    gap: 4,
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 2,
+  },
+  iconCircle: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    borderWidth: 1,
+    borderColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
   },
   icon: {
-    fontSize: 32,
-    fontWeight: "bold",
-    borderRadius: 50,
-    borderColor: "#4D4D61",
-    borderWidth: 1,
+    fontSize: 28,
+    fontFamily: FontFamily.semiBold,
+    color: "#fff",
     textAlign: "center",
-    textAlignVertical: "center",
-    width: 50,
-    height: 50,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: "bold",
+    marginTop: -1,
   },
   value: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginTop: 4,
+    fontSize: 35,
+    fontFamily: FontFamily.bold,
+    color: "#fff",
+    letterSpacing: -0.5,
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontFamily: FontFamily.medium,
+    color: "#fff",
+    textAlign: "center",
+    opacity: 0.9,
   },
 });

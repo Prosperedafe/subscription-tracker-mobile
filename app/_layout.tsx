@@ -50,9 +50,9 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SubscriptionProvider>
-        <AuthProvider>
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionProvider>
           <ThemeProvider value={DarkTheme}>
             <ProtectedRoute>
               <Stack>
@@ -64,8 +64,8 @@ export default function RootLayout() {
               <Toast />
             </ProtectedRoute>
           </ThemeProvider>
-        </AuthProvider>
-      </SubscriptionProvider>
-    </QueryClientProvider>
+        </SubscriptionProvider>
+      </QueryClientProvider>
+    </AuthProvider>
   );
 }

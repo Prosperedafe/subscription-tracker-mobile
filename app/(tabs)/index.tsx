@@ -3,24 +3,19 @@ import { MonthlySpent } from "@/components/Subscriptions/MonthlySpent";
 import { UpcomingSubscriptions } from "@/components/Subscriptions/Upcoming";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { Colors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { subscriptionsApi } from "@/lib/api";
+import { homeStyles as styles } from "@/styles";
 import { useQuery } from "@tanstack/react-query";
-import { differenceInDays, format, isPast } from "date-fns";
+import { differenceInDays } from "date-fns";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
+  Image,
   RefreshControl,
-  StyleSheet,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,20 +31,14 @@ interface Subscription {
   status: "active" | "inactive" | "expired";
   startDate: string;
   renewalDate: string;
+  icon?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-type FilterType = "all" | "active" | "inactive" | "expired";
-type SortType = "renewal" | "price-high" | "price-low" | "name";
-
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const colorScheme = useColorScheme();
-  const [filter, setFilter] = useState<FilterType>("all");
-  const [sort, setSort] = useState<SortType>("renewal");
-  const [searchQuery, setSearchQuery] = useState("");
   const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -72,40 +61,6 @@ export default function DashboardScreen() {
 
   const subscriptions: Subscription[] = subscriptionsData?.data || [];
 
-  const filteredAndSortedSubscriptions = useMemo(() => {
-    let filtered = subscriptions;
-
-    if (filter !== "all") {
-      filtered = filtered.filter((sub) => sub.status === filter);
-    }
-
-    if (searchQuery) {
-      filtered = filtered.filter((sub) =>
-        sub.name.toLowerCase().includes(searchQuery.toLowerCase()),
-      );
-    }
-
-    const sorted = [...filtered].sort((a, b) => {
-      switch (sort) {
-        case "renewal":
-          return (
-            new Date(a.renewalDate).getTime() -
-            new Date(b.renewalDate).getTime()
-          );
-        case "price-high":
-          return b.price - a.price;
-        case "price-low":
-          return a.price - b.price;
-        case "name":
-          return a.name.localeCompare(b.name);
-        default:
-          return 0;
-      }
-    });
-
-    return sorted;
-  }, [subscriptions, filter, sort, searchQuery]);
-
   const totalSpending = useMemo(() => {
     const activeSubs = subscriptions.filter((sub) => sub.status === "active");
     return activeSubs.reduce((total, sub) => {
@@ -119,39 +74,24 @@ export default function DashboardScreen() {
 
   const upcomingRenewals = useMemo(() => {
     const now = new Date();
-    const next7Days = subscriptions.filter((sub) => {
+    return subscriptions.filter((sub) => {
       const renewal = new Date(sub.renewalDate);
       const daysUntil = differenceInDays(renewal, now);
-      return daysUntil >= 0 && daysUntil <= 25 && sub.status === "active";
+      return daysUntil >= 0 && daysUntil <= 7 && sub.status === "active";
     });
-    return next7Days;
   }, [subscriptions]);
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "MMM dd, yyyy");
-  };
 
   const getDaysUntilRenewal = (dateString: string) => {
     const days = differenceInDays(new Date(dateString), new Date());
     if (days < 0) return "Expired";
     if (days === 0) return "Today";
-    if (days === 1) return "Tomorrow";
     return `${days} days`;
   };
-
-  const colors = Colors[colorScheme ?? "dark"];
 
   if (isLoading) {
     return (
       <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color="#4649E5" />
       </ThemedView>
     );
   }
@@ -162,10 +102,7 @@ export default function DashboardScreen() {
         <ThemedText style={styles.errorText}>
           Error loading subscriptions
         </ThemedText>
-        <TouchableOpacity
-          onPress={() => refetch()}
-          style={[styles.button, { backgroundColor: colors.tint }]}
-        >
+        <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
           <ThemedText style={styles.buttonText}>Retry</ThemedText>
         </TouchableOpacity>
       </ThemedView>
@@ -174,294 +111,81 @@ export default function DashboardScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <KeyboardAvoidingView
-        style={[
-          styles.container,
-          { paddingTop: insets.top, paddingBottom: insets.bottom },
-        ]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <FlatList
-            data={filteredAndSortedSubscriptions}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item }) => (
-              <View
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: colors.background,
-                    borderColor: colors.icon,
-                  },
-                ]}
-              >
-                <View style={styles.cardHeader}>
-                  <ThemedText type="subtitle" style={styles.cardTitle}>
-                    {item.name}
+      <FlatList
+        data={subscriptions}
+        keyExtractor={(item) => item._id}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.subCard}
+            onPress={() =>
+              router.push({
+                pathname: "/create-subscription",
+                params: { id: item._id },
+              })
+            }
+          >
+            <View style={styles.subIconContainer}>
+              {item.icon ? (
+                <Image source={{ uri: item.icon }} style={styles.subLogo} />
+              ) : (
+                <View style={styles.subPlaceholderIcon}>
+                  <ThemedText style={styles.subPlaceholderText}>
+                    {item.name[0] || "?"}
                   </ThemedText>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      {
-                        backgroundColor:
-                          item.status === "active"
-                            ? "#4CAF50"
-                            : item.status === "expired"
-                              ? "#f44336"
-                              : "#9E9E9E",
-                      },
-                    ]}
-                  >
-                    <ThemedText style={styles.statusText}>
-                      {item.status}
-                    </ThemedText>
-                  </View>
                 </View>
-                <View style={styles.cardBody}>
-                  <ThemedText style={styles.cardText}>
-                    {formatCurrency(item.price, item.currency)} /{" "}
-                    {item.frequency}
-                  </ThemedText>
-                  <ThemedText style={styles.cardText}>
-                    Category: {item.category}
-                  </ThemedText>
-                  <ThemedText style={styles.cardText}>
-                    Payment: {item.paymentMethod}
-                  </ThemedText>
-                  <View style={styles.renewalContainer}>
-                    <ThemedText style={styles.cardText}>
-                      Renews: {formatDate(item.renewalDate)}
-                    </ThemedText>
-                    <ThemedText
-                      style={[
-                        styles.renewalBadge,
-                        isPast(new Date(item.renewalDate)) &&
-                          styles.renewalBadgeExpired,
-                      ]}
-                    >
-                      {getDaysUntilRenewal(item.renewalDate)}
-                    </ThemedText>
-                  </View>
-                </View>
-              </View>
+              )}
+            </View>
+            <View style={styles.subInfo}>
+              <ThemedText style={styles.subName}>{item.name}</ThemedText>
+              <ThemedText style={styles.subDue}>
+                Due in {getDaysUntilRenewal(item.renewalDate)}
+              </ThemedText>
+            </View>
+            <View style={styles.subPriceInfo}>
+              <ThemedText style={styles.subPrice}>${item.price}</ThemedText>
+              <ThemedText style={styles.subFrequency}>
+                /{item.frequency === "monthly" ? "Month" : "Year"}
+              </ThemedText>
+            </View>
+          </TouchableOpacity>
+        )}
+        ListHeaderComponent={
+          <View style={{ paddingTop: insets.top + 20 }}>
+            <ProfileHeader />
+            <MonthlySpent amount={totalSpending} />
+            {upcomingRenewals.length > 0 && (
+              <UpcomingSubscriptions data={upcomingRenewals} />
             )}
-            ListHeaderComponent={
-              <>
-                <ProfileHeader />
-                <MonthlySpent />
-                <UpcomingSubscriptions data={upcomingRenewals} />
-                {/* <TextInput
-                  style={[
-                    styles.searchInput,
-                    {
-                      color: colors.text,
-                      borderColor: colors.icon,
-                      backgroundColor: colors.background,
-                      fontFamily: FontFamily.regular,
-                    },
-                  ]}
-                  placeholder="Search subscriptions..."
-                  placeholderTextColor={colors.icon}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                /> */}
-              </>
-            }
-            ListEmptyComponent={
-              <ThemedView style={styles.emptyContainer}>
-                <ThemedText style={styles.emptyText}>
-                  {searchQuery
-                    ? "No subscriptions found"
-                    : "No subscriptions yet"}
-                </ThemedText>
-                {!searchQuery && (
-                  <TouchableOpacity
-                    onPress={() => router.push("/create-subscription")}
-                    style={[styles.button, { backgroundColor: colors.tint }]}
-                  >
-                    <ThemedText style={styles.buttonText}>
-                      Create Your First Subscription
-                    </ThemedText>
-                  </TouchableOpacity>
-                )}
-              </ThemedView>
-            }
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={handleRefresh}
-              />
-            }
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+            <ThemedText style={styles.sectionTitle}>
+              My Subscriptions
+            </ThemedText>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <ThemedText style={styles.emptyText}>
+              No subscriptions yet
+            </ThemedText>
+            <TouchableOpacity
+              onPress={() => router.push("/subscription-list")}
+              style={styles.retryButton}
+            >
+              <ThemedText style={styles.buttonText}>
+                Add Your First Subscription
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#4649E5"
           />
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+        }
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      />
     </ThemedView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-  },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  statsContainer: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  statLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  filtersContainer: {
-    marginBottom: 16,
-    gap: 12,
-  },
-  filterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginRight: 4,
-  },
-  filterButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: "rgba(0,0,0,0.1)",
-  },
-  filterButtonText: {
-    fontSize: 12,
-  },
-  filterButtonTextActive: {
-    color: "#fff",
-  },
-  listContent: {
-    padding: 20,
-    paddingBottom: 100,
-    paddingTop: 10,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  cardBody: {
-    gap: 6,
-  },
-  cardText: {
-    fontSize: 14,
-  },
-  renewalContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  renewalBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: "#4CAF50",
-  },
-  renewalBadgeExpired: {
-    backgroundColor: "#f44336",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    opacity: 0.7,
-    marginBottom: 20,
-  },
-  button: {
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  errorText: {
-    color: "#f44336",
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-});
