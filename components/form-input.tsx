@@ -5,12 +5,7 @@ import { BlurView } from "expo-blur";
 import React, { useState } from "react";
 import type { Control, FieldPath, FieldValues } from "react-hook-form";
 import { Controller } from "react-hook-form";
-import {
-  StyleSheet,
-  TextInput,
-  TextInputProps,
-  View
-} from "react-native";
+import { StyleSheet, TextInput, TextInputProps, View } from "react-native";
 
 const INPUT_BORDER_DEFAULT = "#101019";
 const INPUT_BORDER_FOCUSED = "#252532";
@@ -44,7 +39,7 @@ export function FormInput<T extends FieldValues>({
   onChangeTransform,
 }: FormInputProps<T>) {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? "dark"];
+  const colors = Colors[colorScheme ?? "light"];
   const [isFocused, setIsFocused] = useState(false);
 
   const borderColor = isFocused ? INPUT_BORDER_FOCUSED : INPUT_BORDER_DEFAULT;

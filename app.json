@@ -1,46 +1,47 @@
 {
   "expo": {
-    "name": "Lens",
-    "slug": "lens",
+    "name": "SubEase",
+    "slug": "subease",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "lens",
+    "orientation": "default",
+    "icon": "./assets/icons/logo-white.png",
+    "scheme": "subease",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "splash": {
+        "image": "./assets/images/splash-v2.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#4A55F2"
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#4A55F2",
+        "foregroundImage": "./assets/icons/logo-white.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/icons/logo-white.png"
     },
     "splash": {
-      "image": "./assets/images/Splash.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#050511"
+      "image": "./assets/images/splash-v2.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4A55F2"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/Splash.png",
+          "image": "./assets/images/splash-v2.png",
           "imageWidth": 200,
-          "resizeMode": "cover",
-          "backgroundColor": "#050511",
+          "resizeMode": "contain",
+          "backgroundColor": "#4A55F2",
           "dark": {
-            "backgroundColor": "#050511"
+            "backgroundColor": "#4A55F2"
           }
         }
       ]

@@ -1,6 +1,6 @@
-# Lens
+# Subease
 
-Lens is a modern React Native mobile application for tracking and managing subscriptions, built with Expo and React Query.
+Subease is a modern React Native mobile application for tracking and managing subscriptions, built with Expo and React Query.
 
 ## Features
 

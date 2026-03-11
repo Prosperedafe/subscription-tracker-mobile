@@ -5,6 +5,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 import {
@@ -19,7 +20,6 @@ import {
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { queryClient } from "@/lib/queryClient";
 
 SplashScreen.preventAutoHideAsync();
@@ -29,8 +29,6 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   const [fontsLoaded, fontError] = useFonts({
     RedRose_300Light,
     RedRose_400Regular,
@@ -41,7 +39,13 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+      setTimeout(async () => {
+        try {
+          await SplashScreen.hideAsync();
+        } catch (e) {
+          console.warn(e);
+        }
+      }, 600);
     }
   }, [fontsLoaded, fontError]);
 
@@ -50,22 +54,33 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClient}>
-        <SubscriptionProvider>
-          <ThemeProvider value={DarkTheme}>
-            <ProtectedRoute>
-              <Stack>
-                <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-                <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              </Stack>
-              <StatusBar style="auto" />
-              <Toast />
-            </ProtectedRoute>
-          </ThemeProvider>
-        </SubscriptionProvider>
-      </QueryClientProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <SubscriptionProvider>
+            <ThemeProvider value={DarkTheme}>
+              <ProtectedRoute>
+                <Stack>
+                  <Stack.Screen
+                    name="sign-in"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="sign-up"
+                    options={{ headerShown: false }}
+                  />
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{ headerShown: false }}
+                  />
+                </Stack>
+                <StatusBar style="auto" />
+                <Toast />
+              </ProtectedRoute>
+            </ThemeProvider>
+          </SubscriptionProvider>
+        </QueryClientProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
